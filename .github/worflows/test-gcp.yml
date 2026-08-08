@@ -1,15 +1,20 @@
 name: Test GCP Auth
 
 on:
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
-  test-gcp:
+  check-gcp-auth:
+    name: Check GCP Auth
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
       id-token: write
+
 
     steps:
       - name: Checkout
