@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import timedelta
+
+import pendulum
+
+
+LOCAL_TZ = pendulum.timezone("America/Sao_Paulo")
+
+
+@dataclass(frozen=True)
+class TableConfig:
+    name: str
+    source_uri: str
+    source_format: str
+    landing_prefix: str
+    schedule: str
+    silver_model: str
+
+
+PROJECT_ID = "{{ var.value.get('igaming_gcp_project_id', 'case-grupo-otg') }}"
+REGION = "{{ var.value.get('igaming_gcp_region', 'southamerica-east1') }}"
+LANDING_BUCKET = "{{ var.value.get('igaming_landing_bucket', 'case-grupo-otg-landing') }}"
+GCP_CONN_ID = "{{ var.value.get('igaming_gcp_conn_id', 'google_cloud_default') }}"
+LANDING_JOB_NAME = "{{ var.value.get('igaming_landing_job_name', 'fraud-file-to-landing-parquet') }}"
+DBT_JOB_NAME = "{{ var.value.get('igaming_dbt_job_name', 'fraud-dbt') }}"
+DBT_TARGET = "{{ var.value.get('igaming_dbt_target', 'cloud_run') }}"
+
+DEFAULT_ARGS = {
+    "owner": "data-engineering",
+    "retries": 1,
+    "retry_delay": timedelta(minutes=5),
+}
+
+TABLES: tuple[TableConfig, ...] = (
+    TableConfig(
+        name="players",
+        source_uri="{{ var.value.get('igaming_players_source_uri', 'gs://case-grupo-otg-raw/players.json') }}",
+        source_format="json-array",
+        landing_prefix=f"gs://{LANDING_BUCKET}/landing/players",
+        schedule="0 2 * * *",
+        silver_model="slv_players",
+    ),
+    TableConfig(
+        name="sessions",
+        source_uri="{{ var.value.get('igaming_sessions_source_uri', 'gs://case-grupo-otg-raw/sessions.json') }}",
+        source_format="json-array",
+        landing_prefix=f"gs://{LANDING_BUCKET}/landing/sessions",
+        schedule="0 * * * *",
+        silver_model="slv_sessions",
+    ),
+    TableConfig(
+        name="transactions",
+        source_uri="{{ var.value.get('igaming_transactions_source_uri', 'gs://case-grupo-otg-raw/transactions.csv') }}",
+        source_format="csv",
+        landing_prefix=f"gs://{LANDING_BUCKET}/landing/transactions",
+        schedule="15 * * * *",
+        silver_model="slv_transactions",
+    ),
+    TableConfig(
+        name="affiliate_cpa_ftd",
+        source_uri="{{ var.value.get('igaming_affiliate_source_uri', 'gs://case-grupo-otg-raw/affiliate_cpa_ftd.csv') }}",
+        source_format="csv",
+        landing_prefix=f"gs://{LANDING_BUCKET}/landing/affiliate_cpa_ftd",
+        schedule="30 2 * * *",
+        silver_model="slv_affiliate_cpa_ftd",
+    ),
+)
+
+GOLD_MODELS: dict[str, tuple[str, ...]] = {
+    "gold_financial_signals": ("transactions",),
+    "gold_affiliate_metrics": ("affiliate_cpa_ftd",),
+    "gold_fraud_overview": ("players", "sessions", "transactions", "affiliate_cpa_ftd"),
+}

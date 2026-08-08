@@ -151,6 +151,8 @@ activemq-data/
 .env
 .envrc
 .venv
+.venv*/
+.venv*
 env/
 venv/
 ENV/
@@ -208,6 +210,11 @@ tempCodeRunnerFile.py
 
 # PyPI configuration file
 .pypirc
+
+# dbt local artifacts
+dbt/dbt_packages/
+dbt/logs/
+dbt/target/
 
 # Marimo
 marimo/_static/

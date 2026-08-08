@@ -1,0 +1,32 @@
+name: "pipeline_deteccao_fraude"
+version: "1.0.0"
+config-version: 2
+
+profile: "pipeline_deteccao_fraude"
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  pipeline_deteccao_fraude:
+    bronze:
+      +schema: bronze
+      +materialized: view
+      +tags: ["bronze"]
+    silver:
+      +schema: silver
+      +materialized: incremental
+      +on_schema_change: sync_all_columns
+      +tags: ["silver"]
+    gold:
+      +schema: gold
+      +materialized: table
+      +tags: ["gold"]
