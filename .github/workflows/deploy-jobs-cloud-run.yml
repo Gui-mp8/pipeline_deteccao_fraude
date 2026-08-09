@@ -133,8 +133,8 @@ jobs:
             timeout="$(yq -r "${prefix}.task_timeout // ${prefix}.timeout // .task_timeout // .timeout // \"900s\"" "${config_file}")"
             service_account="$(yq -r "${prefix}.service_account // .service_account // \"\"" "${config_file}")"
             env_entries_raw="$(yq -r "(.env // {}) * (${prefix}.env // {}) | to_entries[]? | \"\(.key)=\(.value)\"" "${config_file}")"
-            args_entries_raw="$(yq -r "(${prefix}.args // .args // [])[]? // empty" "${config_file}")"
-            extra_args_raw="$(yq -r "(${prefix}.extra_args // .extra_args // [])[]? // empty" "${config_file}")"
+            args_entries_raw="$(yq -r "(${prefix}.args // .args // []) | .[]" "${config_file}")"
+            extra_args_raw="$(yq -r "(${prefix}.extra_args // .extra_args // []) | .[]" "${config_file}")"
 
             if [ -z "${job_name}" ] || [ "${job_name}" = "null" ]; then
               echo "Job name is required in ${config_file}"
