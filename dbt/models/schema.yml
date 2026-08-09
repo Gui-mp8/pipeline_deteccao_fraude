@@ -1,0 +1,103 @@
+version: 2
+
+models:
+  - name: slv_players
+    description: "Clean player dimension. One row per player with normalized email and registration attributes used to enrich fraud analysis."
+    columns:
+      - name: player_id
+        description: "Stable player identifier from the source."
+        data_tests: [not_null, unique]
+      - name: email
+        description: "Lowercase trimmed email; useful for domain-level and duplicate-account analysis."
+        data_tests: [not_null]
+      - name: created_at
+        description: "Player registration date used as the incremental and cohort field."
+  - name: slv_sessions
+    description: "Clean access sessions. One row per session with normalized device and parsed timestamp for behavioral analysis."
+    columns:
+      - name: session_id
+        description: "Stable session identifier."
+        data_tests: [not_null, unique]
+      - name: player_id
+        description: "Player associated with the session."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('slv_players')
+              field: player_id
+      - name: session_date
+        description: "Date partition derived from session timestamp."
+        data_tests: [not_null]
+      - name: device
+        description: "Normalized device family observed in the session."
+        data_tests:
+          - accepted_values:
+              values: ["android", "ios", "desktop"]
+  - name: slv_transactions
+    description: "Clean financial movements. One row per transaction with split measures for deposits, withdrawals and bets."
+    columns:
+      - name: transaction_id
+        description: "Stable transaction identifier."
+        data_tests: [not_null, unique]
+      - name: player_id
+        description: "Player associated with the financial movement."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('slv_players')
+              field: player_id
+      - name: transaction_type
+        description: "Normalized movement type accepted by the case."
+        data_tests:
+          - accepted_values:
+              values: ["deposit", "withdraw", "bet"]
+      - name: amount
+        description: "Non-negative movement amount."
+        data_tests: [not_null]
+      - name: transaction_date
+        description: "Date partition derived from transaction timestamp."
+        data_tests: [not_null]
+  - name: slv_affiliate_cpa_ftd
+    description: "Clean affiliate CPA/FTD attribution. One row per affiliate, player and country with acquisition funnel anomaly flags."
+    columns:
+      - name: affiliate_player_country_key
+        description: "Surrogate key for the affiliate-player-country grain."
+        data_tests: [not_null, unique]
+      - name: player_id
+        description: "Attributed player identifier."
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('slv_players')
+              field: player_id
+      - name: country
+        description: "Uppercase country code associated with the affiliate attribution row."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ["AR", "BR", "CL", "CO", "MX"]
+  - name: gold_financial_signals
+    description: "Player-level financial aggregates and anomaly flags for risk triage."
+    columns:
+      - name: player_id
+        data_tests: [not_null, unique]
+      - name: withdraw_to_deposit_ratio
+        description: "Withdrawal pressure against deposits; high values can indicate abuse or laundering risk."
+  - name: gold_affiliate_metrics
+    description: "Affiliate-country performance mart for dashboarding CPA efficiency and suspicious funnel behavior."
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["affiliate_id", "country"]
+    columns:
+      - name: affiliate_id
+        data_tests: [not_null]
+      - name: country
+        data_tests: [not_null]
+  - name: gold_fraud_overview
+    description: "Player-level fraud overview combining identity, behavior, finance and affiliate funnel signals."
+    columns:
+      - name: player_id
+        data_tests: [not_null, unique]
+      - name: fraud_signal_count
+        description: "Count of active fraud signals; intended for dashboard prioritization and alert ranking."
+        data_tests: [not_null]

@@ -1,0 +1,79 @@
+name: Deploy dbt to Cloud Run Job
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "dbt/**"
+      - "Dockerfile.dbt"
+      - "scripts/dbt-entrypoint.sh"
+      - ".github/workflows/deploy-dbt-cloud-run.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION || 'southamerica-east1' }}
+  GAR_REPOSITORY: ${{ vars.DBT_ARTIFACT_REGISTRY_REPOSITORY || 'fraud-dbt' }}
+  IMAGE_NAME: ${{ vars.DBT_IMAGE_NAME || 'fraud-dbt' }}
+  JOB_NAME: ${{ vars.DBT_CLOUD_RUN_JOB || 'fraud-dbt' }}
+  RUNTIME_SERVICE_ACCOUNT: ${{ vars.DBT_RUNTIME_SERVICE_ACCOUNT }}
+
+jobs:
+  deploy-dbt:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Auth GCP
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER || vars.GCP_WORKLOAD_IDENTITY_PROVIDER || 'projects/712304487497/locations/global/workloadIdentityPools/github-pool/providers/github-provider' }}
+          service_account: ${{ secrets.GCP_GITHUB_ACTIONS_SERVICE_ACCOUNT || vars.GCP_GITHUB_ACTIONS_SERVICE_ACCOUNT || 'case-594@case-grupo-otg1.iam.gserviceaccount.com' }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Configure Docker auth
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Build dbt image
+        run: |
+          set -euo pipefail
+          IMAGE_URI="${REGION}-docker.pkg.dev/${PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}:${GITHUB_SHA}"
+          docker build -f Dockerfile.dbt -t "${IMAGE_URI}" -t "${REGION}-docker.pkg.dev/${PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}:latest" .
+          echo "IMAGE_URI=${IMAGE_URI}" >> "${GITHUB_ENV}"
+
+      - name: Validate dbt package
+        run: docker run --rm "${IMAGE_URI}" parse
+
+      - name: Push image
+        run: |
+          docker push "${IMAGE_URI}"
+          docker push "${REGION}-docker.pkg.dev/${PROJECT_ID}/${GAR_REPOSITORY}/${IMAGE_NAME}:latest"
+
+      - name: Deploy Cloud Run Job
+        run: |
+          set -euo pipefail
+          args=(
+            run jobs deploy "${JOB_NAME}"
+            --image="${IMAGE_URI}"
+            --region="${REGION}"
+            --project="${PROJECT_ID}"
+            --memory="2Gi"
+            --cpu="1"
+            --max-retries="1"
+            --tasks="1"
+            --task-timeout="1800s"
+            --args="build,--select,gold.*"
+            --set-env-vars="GCP_PROJECT_ID=${PROJECT_ID},DBT_TARGET=cloud_run"
+          )
+          if [ -n "${RUNTIME_SERVICE_ACCOUNT}" ]; then
+            args+=(--service-account="${RUNTIME_SERVICE_ACCOUNT}")
+          fi
+          gcloud "${args[@]}"
