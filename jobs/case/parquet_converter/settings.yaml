@@ -4,7 +4,7 @@ region: us-central1
 artifact_registry_repository: gar-imagens
 image_name: fraud-landing-to-staging-parquet
 memory: 256Mi
-cpu: "0.5"
+cpu: "1"
 max_retries: "1"
 task_count: "1"
 task_timeout: 900s
