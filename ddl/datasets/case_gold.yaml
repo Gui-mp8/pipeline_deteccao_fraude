@@ -1,0 +1,4 @@
+project_id: case-grupo-otg1
+dataset_id: case_gold
+location: us-central1
+description: Camada gold do case com marts e indicadores para analise de fraude.

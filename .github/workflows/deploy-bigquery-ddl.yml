@@ -1,0 +1,172 @@
+name: Deploy BigQuery DDL
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ddl/**"
+      - ".github/workflows/deploy-bigquery-ddl.yml"
+  workflow_dispatch:
+    inputs:
+      deploy_scope:
+        description: "Deploy changed DDLs or all DDLs"
+        required: true
+        default: "changed"
+        type: choice
+        options:
+          - changed
+          - all
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'case-grupo-otg1' }}
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      datasets_changed: ${{ steps.detect.outputs.datasets_changed }}
+      ddl_changed: ${{ steps.detect.outputs.ddl_changed }}
+      deploy_scope: ${{ steps.detect.outputs.deploy_scope }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed DDL files
+        id: detect
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          deploy_scope="${{ github.event.inputs.deploy_scope || 'changed' }}"
+          echo "deploy_scope=${deploy_scope}" >> "${GITHUB_OUTPUT}"
+
+          if [ "${deploy_scope}" = "all" ]; then
+            echo "datasets_changed=true" >> "${GITHUB_OUTPUT}"
+            echo "ddl_changed=true" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          changed_files="$(git diff --name-only HEAD^ HEAD || true)"
+          if printf '%s\n' "${changed_files}" | grep -Eq '^ddl/datasets/.*\.ya?ml$'; then
+            echo "datasets_changed=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "datasets_changed=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+          if printf '%s\n' "${changed_files}" | grep -Eq '^ddl/tables/.*\.sql$'; then
+            echo "ddl_changed=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "ddl_changed=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+  create-bigquery-datasets:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.datasets_changed == 'true'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Auth GCP
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER || vars.GCP_WORKLOAD_IDENTITY_PROVIDER || 'projects/712304487497/locations/global/workloadIdentityPools/github-pool/providers/github-provider' }}
+          service_account: ${{ secrets.GCP_GITHUB_ACTIONS_SERVICE_ACCOUNT || vars.GCP_GITHUB_ACTIONS_SERVICE_ACCOUNT || 'case-594@case-grupo-otg1.iam.gserviceaccount.com' }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Create datasets
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          shopt -s nullglob
+          dataset_files=(ddl/datasets/*.yaml)
+          shopt -u nullglob
+
+          if [ "${#dataset_files[@]}" -eq 0 ]; then
+            echo "No dataset YAML files found. Skipping."
+            exit 0
+          fi
+
+          for file in "${dataset_files[@]}"; do
+            project_id_file="$(yq -r '.project_id // env(PROJECT_ID)' "${file}")"
+            dataset_id="$(yq -r '.dataset_id' "${file}")"
+            location="$(yq -r '.location // env(REGION)' "${file}")"
+            description="$(yq -r '.description // ""' "${file}")"
+
+            if [ -z "${dataset_id}" ] || [ "${dataset_id}" = "null" ]; then
+              echo "dataset_id is required in ${file}"
+              exit 1
+            fi
+
+            echo "Ensuring dataset ${project_id_file}:${dataset_id}"
+            if bq --project_id="${project_id_file}" show "${project_id_file}:${dataset_id}" >/dev/null 2>&1; then
+              echo "Dataset already exists. Skipping."
+            else
+              bq --project_id="${project_id_file}" \
+                --location="${location}" \
+                mk --dataset \
+                --description "${description}" \
+                "${project_id_file}:${dataset_id}"
+            fi
+          done
+
+  apply-modified-bigquery-ddls:
+    runs-on: ubuntu-latest
+    needs:
+      - detect-changes
+      - create-bigquery-datasets
+    if: always() && needs.detect-changes.outputs.ddl_changed == 'true' && needs.create-bigquery-datasets.result != 'failure' && needs.create-bigquery-datasets.result != 'cancelled'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Auth GCP
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER || vars.GCP_WORKLOAD_IDENTITY_PROVIDER || 'projects/712304487497/locations/global/workloadIdentityPools/github-pool/providers/github-provider' }}
+          service_account: ${{ secrets.GCP_GITHUB_ACTIONS_SERVICE_ACCOUNT || vars.GCP_GITHUB_ACTIONS_SERVICE_ACCOUNT || 'case-594@case-grupo-otg1.iam.gserviceaccount.com' }}
+
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v3
+
+      - name: Apply DDLs
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          deploy_scope="${{ needs.detect-changes.outputs.deploy_scope }}"
+          if [ "${deploy_scope}" = "all" ]; then
+            files="$(find ddl/tables -type f -name '*.sql' | sort || true)"
+          else
+            files="$(git diff --name-only HEAD^ HEAD -- 'ddl/tables/**/*.sql' 'ddl/tables/*.sql' || true)"
+          fi
+
+          if [ -z "${files// }" ]; then
+            echo "No DDL changes detected. Skipping."
+            exit 0
+          fi
+
+          for file in ${files}; do
+            echo "Applying ${file}"
+            bq --project_id="${PROJECT_ID}" query --use_legacy_sql=false < "${file}"
+          done

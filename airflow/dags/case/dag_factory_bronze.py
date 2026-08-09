@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
 from airflow.sdk import dag, task
 
@@ -10,7 +8,6 @@ from case.config import (
     BRONZE_DATASET,
     DEFAULT_ARGS,
     GCP_CONN_ID,
-    GCS_BUCKET,
     LOCAL_TZ,
     PROJECT_ID,
     TABLES,
@@ -18,11 +15,7 @@ from case.config import (
 from case.datasets import bronze_asset, staging_asset
 
 
-SQL_DIR = Path(__file__).parent / "sql" / "bronze"
-
-
 def build_bronze_dag(table):
-    sql = (SQL_DIR / f"{table.name}.sql").read_text(encoding="utf-8")
     @dag(
         dag_id=f"case_bronze_{table.name}",
         default_args=DEFAULT_ARGS,
@@ -33,21 +26,27 @@ def build_bronze_dag(table):
         tags=["case", "bronze", table.name],
     )
     def _bronze_dag():
-        create_external_table = BigQueryInsertJobOperator(
-            task_id="create_or_replace_external_table",
+        validate_external_table = BigQueryInsertJobOperator(
+            task_id="validate_external_table",
             gcp_conn_id=GCP_CONN_ID,
             location=BIGQUERY_LOCATION,
             configuration={
                 "query": {
-                    "query": sql,
+                    "query": """
+                    assert (
+                      select count(*)
+                      from `{{ params.project_id }}.{{ params.bronze_dataset }}.INFORMATION_SCHEMA.TABLES`
+                      where table_name = '{{ params.table_name }}'
+                    ) = 1 as 'External table {{ params.bronze_dataset }}.{{ params.table_name }} not found';
+                    """,
                     "useLegacySql": False,
                 }
             },
             params={
                 "project_id": PROJECT_ID,
                 "bronze_dataset": BRONZE_DATASET,
-                "gcs_bucket": GCS_BUCKET,
                 "bigquery_location": BIGQUERY_LOCATION,
+                "table_name": table.name,
             },
         )
 
@@ -55,7 +54,7 @@ def build_bronze_dag(table):
         def publish_dataset() -> str:
             return table.name
 
-        create_external_table >> publish_dataset()
+        validate_external_table >> publish_dataset()
 
     return _bronze_dag()
 

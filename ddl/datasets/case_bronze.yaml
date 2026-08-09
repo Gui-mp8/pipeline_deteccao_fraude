@@ -1,0 +1,4 @@
+project_id: case-grupo-otg1
+dataset_id: case_bronze
+location: us-central1
+description: Camada bronze do case com tabelas externas sobre Parquet na staging do GCS.
