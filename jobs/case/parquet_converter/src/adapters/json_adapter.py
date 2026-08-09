@@ -96,3 +96,4 @@ class JsonAdapter(ParquetTransformer):
             row_count=table.num_rows,
             part_number=next(self._part_numbers[partition]),
         )
+
