@@ -223,7 +223,8 @@ jobs:
             image_uri="${region}-docker.pkg.dev/${project_id}/${repo}/${image_name}:${GITHUB_SHA}"
 
             gcloud auth configure-docker "${region}-docker.pkg.dev" --quiet
-            gcloud builds submit "${job_source}" --tag "${image_uri}" --project "${project_id}"
+            docker build -t "${image_uri}" "${job_source}"
+            docker push "${image_uri}"
 
             function_count="$(yq -r '.functions // [] | length' "${config_file}")"
             if [ "${function_count}" -eq 0 ]; then
