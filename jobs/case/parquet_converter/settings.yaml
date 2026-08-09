@@ -3,7 +3,7 @@ project_id: case-grupo-otg1
 region: us-central1
 artifact_registry_repository: gar-imagens
 image_name: fraud-landing-to-staging-parquet
-memory: 256Mi
+memory: 512Mi
 cpu: "1"
 max_retries: "1"
 task_count: "1"
