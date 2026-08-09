@@ -62,8 +62,8 @@ jobs:
       - name: Auth GCP
         uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_GITHUB_ACTIONS_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER || vars.GCP_WORKLOAD_IDENTITY_PROVIDER || 'projects/712304487497/locations/global/workloadIdentityPools/github-pool/providers/github-provider' }}
+          service_account: ${{ secrets.GCP_GITHUB_ACTIONS_SERVICE_ACCOUNT || vars.GCP_GITHUB_ACTIONS_SERVICE_ACCOUNT || 'case-594@case-grupo-otg1.iam.gserviceaccount.com' }}
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v3
@@ -99,28 +99,47 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if [ ! -s /tmp/job_dirs.txt ]; then
-            echo "No job directories selected."
-            exit 0
-          fi
 
-          while IFS= read -r job_dir; do
-            config_file="${job_dir}/settings.yaml"
-            job_name="$(yq '.name' "${config_file}")"
-            project_id="$(yq '.project_id // env(DEFAULT_PROJECT_ID)' "${config_file}")"
-            region="$(yq '.region // env(DEFAULT_REGION)' "${config_file}")"
-            repo="$(yq '.artifact_registry_repository // env(DEFAULT_ARTIFACT_REGISTRY_REPOSITORY)' "${config_file}")"
-            image_name="$(yq '.image_name // .name' "${config_file}")"
-            memory="$(yq '.memory // "512Mi"' "${config_file}")"
-            cpu="$(yq '.cpu // "1"' "${config_file}")"
-            max_retries="$(yq '.max_retries // "1"' "${config_file}")"
-            tasks="$(yq '.tasks // "1"' "${config_file}")"
-            timeout="$(yq '.timeout // "900s"' "${config_file}")"
-            service_account="$(yq '.service_account // ""' "${config_file}")"
-            image_uri="${region}-docker.pkg.dev/${project_id}/${repo}/${image_name}:${GITHUB_SHA}"
+          deploy_cloud_run_job() {
+            local config_file="$1"
+            local image_uri="$2"
+            local function_index="${3:-}"
 
-            gcloud auth configure-docker "${region}-docker.pkg.dev" --quiet
-            gcloud builds submit "${job_dir}" --tag "${image_uri}" --project "${project_id}"
+            local prefix=""
+            if [ -n "${function_index}" ]; then
+              prefix=".functions[${function_index}]"
+            fi
+
+            local job_name
+            local memory
+            local cpu
+            local max_retries
+            local tasks
+            local parallelism
+            local timeout
+            local service_account
+            local env_entries_raw
+            local env_joined
+            local args_entries_raw
+            local args_joined
+            local extra_args_raw
+
+            job_name="$(yq -r "${prefix}.name // .name // \"\"" "${config_file}")"
+            memory="$(yq -r "${prefix}.memory // .memory // \"512Mi\"" "${config_file}")"
+            cpu="$(yq -r "${prefix}.cpu // .cpu // \"1\"" "${config_file}")"
+            max_retries="$(yq -r "${prefix}.max_retries // .max_retries // \"1\"" "${config_file}")"
+            tasks="$(yq -r "${prefix}.task_count // ${prefix}.tasks // .task_count // .tasks // \"1\"" "${config_file}")"
+            parallelism="$(yq -r "${prefix}.parallelism // .parallelism // \"1\"" "${config_file}")"
+            timeout="$(yq -r "${prefix}.task_timeout // ${prefix}.timeout // .task_timeout // .timeout // \"900s\"" "${config_file}")"
+            service_account="$(yq -r "${prefix}.service_account // .service_account // \"\"" "${config_file}")"
+            env_entries_raw="$(yq -r "(.env // {}) * (${prefix}.env // {}) | to_entries[]? | \"\(.key)=\(.value)\"" "${config_file}")"
+            args_entries_raw="$(yq -r "(${prefix}.args // .args // [])[]? // empty" "${config_file}")"
+            extra_args_raw="$(yq -r "(${prefix}.extra_args // .extra_args // [])[]? // empty" "${config_file}")"
+
+            if [ -z "${job_name}" ] || [ "${job_name}" = "null" ]; then
+              echo "Job name is required in ${config_file}"
+              exit 1
+            fi
 
             deploy_args=(
               run jobs deploy "${job_name}"
@@ -131,13 +150,87 @@ jobs:
               --cpu="${cpu}"
               --max-retries="${max_retries}"
               --tasks="${tasks}"
+              --parallelism="${parallelism}"
               --task-timeout="${timeout}"
             )
-            if [ -n "${service_account}" ]; then
+            if [ -n "${service_account}" ] && [ "${service_account}" != "null" ]; then
               deploy_args+=(--service-account="${service_account}")
             fi
-            while IFS= read -r env_pair; do
-              deploy_args+=(--set-env-vars="${env_pair}")
-            done < <(yq '.env // {} | to_entries[] | "\(.key)=\(.value)"' "${config_file}")
+
+            if [ -n "${env_entries_raw}" ]; then
+              mapfile -t env_entries < <(printf '%s\n' "${env_entries_raw}")
+              if [ "${#env_entries[@]}" -gt 0 ]; then
+                env_joined="$(printf '%s,' "${env_entries[@]}")"
+                deploy_args+=("--set-env-vars=${env_joined%,}")
+              fi
+            fi
+
+            if [ -n "${args_entries_raw}" ]; then
+              mapfile -t args_entries < <(printf '%s\n' "${args_entries_raw}")
+              if [ "${#args_entries[@]}" -gt 0 ]; then
+                args_joined="$(printf '%s,' "${args_entries[@]}")"
+                deploy_args+=("--args=${args_joined%,}")
+              fi
+            fi
+
+            if [ -n "${extra_args_raw}" ]; then
+              while IFS= read -r extra_arg; do
+                [ -z "${extra_arg}" ] && continue
+                deploy_args+=("${extra_arg}")
+              done <<< "${extra_args_raw}"
+            fi
+
+            echo "----------------------------------------"
+            echo "Deploying ${job_name}"
+            echo "Image: ${image_uri}"
+
             gcloud "${deploy_args[@]}"
+          }
+
+          if [ ! -s /tmp/job_dirs.txt ]; then
+            echo "No job directories selected."
+            exit 0
+          fi
+
+          while IFS= read -r job_dir; do
+            config_file="${job_dir}/settings.yaml"
+            project_id="$(yq -r '.project_id // env(DEFAULT_PROJECT_ID) // ""' "${config_file}")"
+            region="$(yq -r '.region // env(DEFAULT_REGION) // "us-central1"' "${config_file}")"
+            repo="$(yq -r '.artifact_registry_repository // env(DEFAULT_ARTIFACT_REGISTRY_REPOSITORY) // ""' "${config_file}")"
+            image_name="$(yq -r ".image_name // .name // \"$(basename "${job_dir}")\"" "${config_file}")"
+            source_dir="$(yq -r '.source_dir // ""' "${config_file}")"
+            if [ -z "${source_dir}" ] || [ "${source_dir}" = "null" ]; then
+              job_source="${job_dir}"
+            else
+              job_source="${source_dir}"
+            fi
+
+            if [ -z "${project_id}" ] || [ "${project_id}" = "null" ]; then
+              echo "project_id is required in ${config_file} or GitHub variable GCP_PROJECT_ID"
+              exit 1
+            fi
+
+            if [ -z "${repo}" ] || [ "${repo}" = "null" ]; then
+              echo "artifact_registry_repository is required in ${config_file} or GitHub variable JOBS_ARTIFACT_REGISTRY_REPOSITORY"
+              exit 1
+            fi
+
+            if [ ! -f "${job_source}/Dockerfile" ]; then
+              echo "Dockerfile not found in ${job_source}"
+              exit 1
+            fi
+
+            image_uri="${region}-docker.pkg.dev/${project_id}/${repo}/${image_name}:${GITHUB_SHA}"
+
+            gcloud auth configure-docker "${region}-docker.pkg.dev" --quiet
+            gcloud builds submit "${job_source}" --tag "${image_uri}" --project "${project_id}"
+
+            function_count="$(yq -r '.functions // [] | length' "${config_file}")"
+            if [ "${function_count}" -eq 0 ]; then
+              deploy_cloud_run_job "${config_file}" "${image_uri}"
+            else
+              for function_index in $(seq 0 $((function_count - 1))); do
+                deploy_cloud_run_job "${config_file}" "${image_uri}" "${function_index}"
+              done
+            fi
           done < /tmp/job_dirs.txt

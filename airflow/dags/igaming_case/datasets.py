@@ -3,8 +3,8 @@ from __future__ import annotations
 from airflow.sdk import Asset
 
 
-def landing_asset(table: str) -> Asset:
-    return Asset(f"gcs://igaming-case/landing/{table}")
+def staging_asset(table: str) -> Asset:
+    return Asset(f"gcs://igaming-case/staging/{table}")
 
 
 def bronze_asset(table: str) -> Asset:

@@ -8,7 +8,7 @@ from google.auth.transport.requests import Request
 
 
 GCP_CONN_ID = "{{ var.value.get('igaming_gcp_conn_id', 'google_cloud_default') }}"
-PROJECT_ID = "{{ var.value.get('igaming_gcp_project_id', 'case-grupo-otg') }}"
+PROJECT_ID = "{{ var.value.get('igaming_gcp_project_id', 'case-grupo-otg1') }}"
 LOCATION = "{{ var.value.get('igaming_bigquery_location', 'southamerica-east1') }}"
 
 

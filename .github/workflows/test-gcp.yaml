@@ -23,12 +23,12 @@ jobs:
       - name: Auth GCP
         uses: google-github-actions/auth@v3
         with:
-          workload_identity_provider: "projects/413763713999/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
-          service_account: "case-594@case-grupo-otg.iam.gserviceaccount.com"
+          workload_identity_provider: "projects/712304487497/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          service_account: "case-594@case-grupo-otg1.iam.gserviceaccount.com"
 
       - name: Setup gcloud
         uses: google-github-actions/setup-gcloud@v3
 
       - name: Test project access
         run: |
-          gcloud projects describe case-grupo-otg
+          gcloud projects describe case-grupo-otg1

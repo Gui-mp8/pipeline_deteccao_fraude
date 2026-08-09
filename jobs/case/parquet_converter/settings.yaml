@@ -1,0 +1,14 @@
+name: fraud-landing-to-staging-parquet
+project_id: case-grupo-otg1
+region: us-central1
+artifact_registry_repository: gar-imagens
+image_name: fraud-landing-to-staging-parquet
+memory: 256Mi
+cpu: "0.5"
+max_retries: "1"
+task_count: "1"
+task_timeout: 900s
+service_account: case-594@case-grupo-otg1.iam.gserviceaccount.com
+env:
+  GCP_PROJECT_ID: case-grupo-otg1
+  GCS_BUCKET: case-grupo-otg1

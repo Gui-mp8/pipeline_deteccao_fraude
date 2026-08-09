@@ -1,18 +1,18 @@
 # Pipeline de Deteccao de Fraude - iGaming
 
-Projeto para o case tecnico de Engenharia de Dados, Observabilidade e Deteccao de Fraudes. A solucao ingere dados CSV/JSON, converte para Parquet em uma landing no GCS, cria Bronze no BigQuery, transforma com dbt em Silver/Gold e orquestra tudo com Airflow usando Datasets.
+Projeto para o case tecnico de Engenharia de Dados, Observabilidade e Deteccao de Fraudes. A solucao le dados CSV/JSON da landing no GCS, converte para Parquet na staging, cria Bronze no BigQuery, transforma com dbt em Silver/Gold e orquestra tudo com Airflow usando Assets.
 
 ## Arquitetura
 
 ```mermaid
 flowchart LR
-  A[CSV/JSON do case] --> B[Cloud Run Job Python]
-  B --> C[GCS Landing Parquet particionado]
+  A[GCS Landing CSV/JSON bruto] --> B[Cloud Run Job Python]
+  B --> C[GCS Staging Parquet particionado]
   C --> D[BigQuery Bronze external tables]
   D --> E[dbt Silver]
   E --> F[dbt Gold]
   F --> G[Power BI]
-  H[Airflow Datasets] -. orquestra .-> B
+  H[Airflow Assets] -. orquestra .-> B
   H -. orquestra .-> D
   H -. orquestra .-> E
   H -. orquestra .-> F
@@ -22,8 +22,9 @@ Camadas:
 
 | Camada | Responsabilidade |
 |---|---|
-| Landing | Arquivos convertidos para Parquet com baixo uso de memoria e particionamento tecnico/evento. |
-| Bronze | Tabelas externas BigQuery apontando para a landing, com tipagem minima. |
+| Landing | Arquivos brutos CSV/JSON recebidos no bucket `case-grupo-otg1/landing`. |
+| Staging | Arquivos Parquet particionados salvos no bucket `case-grupo-otg1/staging`. |
+| Bronze | Tabelas externas BigQuery apontando para a staging, com tipagem minima. |
 | Silver | Limpeza, casting, normalizacao, deduplicacao/agregacao e testes estruturais via dbt. |
 | Gold | Marts para fraude, performance de afiliados e sinais financeiros. |
 
@@ -42,35 +43,37 @@ Camadas:
 airflow/                    # Astro Airflow e DAG factories
 dbt/                        # Projeto dbt BigQuery
 ddl/bigquery/               # DDL Bronze standalone
-jobs/file_to_landing_parquet # Job Python CSV/JSON -> Parquet
+jobs/case                   # Cloud Run Job Python CSV/JSON -> Parquet
 .github/workflows/          # CI/CD para dbt e jobs Python
 tests/jobs/                 # Pytest do job de landing
 ```
 
 ## Jobs Python
 
-O job `jobs/file_to_landing_parquet` usa classes com responsabilidade unica:
+O job `jobs/case` usa uma estrutura simples com Adapter e Repository:
 
 | Classe | Papel |
 |---|---|
-| `LocalCsvRowReader`, `LocalJsonArrayRowReader`, `GcsCsvRowReader`, `GcsJsonArrayRowReader` | Leem registros com `yield`, sem carregar o arquivo inteiro. |
+| `ParquetTransformer` | Interface que define o contrato para transformar uma fonte em Parquet. |
+| `CsvAdapter` | Le CSV da landing e transforma em batches Parquet. |
+| `JsonAdapter` | Le JSON array da landing com `ijson` e transforma em batches Parquet. |
+| `GCSRepository` | Recebe batches Parquet e salva na staging no Cloud Storage. |
 | `TableConfig` e normalizers | Definem schema PyArrow, colunas obrigatorias e conversao de tipos por tabela. |
-| `PartitionResolver` | Resolve `dt=YYYY-MM-DD` ou `ingest_date=YYYY-MM-DD`. |
-| `ParquetBatchWriter` | Escreve Parquet em micro-batches por particao. |
-| `LandingIngestionPipeline` | Orquestra leitura, validacao, normalizacao, particionamento e escrita. |
+| `main.py` | Entry point invocado quando o container sobe. |
 
 Exemplo local:
 
 ```bash
-python -m file_to_landing_parquet.cli \
-  --source-uri /home/guilherme/Downloads/desfaio-tecnico/BASES_CASE/transactions.csv \
-  --destination-uri /tmp/landing/transactions \
-  --table transactions \
-  --format csv \
-  --batch-size 1000
+TABLE_NAME=transactions \
+SOURCE_URI=/home/guilherme/Downloads/desfaio-tecnico/BASES_CASE/transactions.csv \
+DESTINATION_URI=/tmp/staging/transactions \
+BATCH_SIZE=1000 \
+PYTHONPATH=jobs/case python jobs/case/main.py
 ```
 
-Observacao: Parquet e colunar, entao gravar literalmente uma linha por arquivo nao e eficiente. A solucao le uma linha por vez e grava micro-batches controlados por `batch_size`, preservando baixo consumo de RAM.
+Em Cloud Run, o `main.py` usa variaveis de ambiente. Se nada for sobrescrito, ele assume `gs://case-grupo-otg1/landing/<arquivo>` como origem e `gs://case-grupo-otg1/staging/<tabela>` como destino.
+
+Observacao: Parquet e colunar, entao gravar literalmente uma linha por arquivo nao e eficiente. A solucao le uma linha por vez e grava micro-batches controlados por `BATCH_SIZE`, preservando baixo consumo de RAM.
 
 ## dbt
 
@@ -114,8 +117,8 @@ As DAGs sao geradas por factories em `airflow/dags/igaming_case`:
 
 | Camada | Padrao de DAG |
 |---|---|
-| Landing | `igaming_landing_<tabela>` executa Cloud Run Job Python e publica Dataset GCS. |
-| Bronze | `igaming_bronze_<tabela>` executa DDL BigQuery e publica Dataset BQ. |
+| Landing/Staging | `igaming_landing_<tabela>` executa Cloud Run Job Python, le landing bruta e publica Asset da staging. |
+| Bronze | `igaming_bronze_<tabela>` executa DDL BigQuery sobre a staging e publica Asset BQ. |
 | Silver | `igaming_silver_<tabela>` executa `dbt build --select slv_*` no Cloud Run. |
 | Gold | `igaming_gold_<modelo>` executa `dbt build --select gold_*` apos os Datasets Silver necessarios. |
 
@@ -124,7 +127,7 @@ Variaveis Airflow esperadas:
 ```text
 igaming_gcp_project_id
 igaming_gcp_region
-igaming_landing_bucket
+igaming_gcs_bucket
 igaming_landing_job_name
 igaming_dbt_job_name
 igaming_dbt_target

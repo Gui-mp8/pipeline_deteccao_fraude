@@ -4,7 +4,7 @@ from airflow.providers.google.cloud.operators.cloud_run import CloudRunExecuteJo
 from airflow.sdk import dag, task
 
 from igaming_case.config import DEFAULT_ARGS, GCP_CONN_ID, LANDING_JOB_NAME, PROJECT_ID, REGION, TABLES, LOCAL_TZ
-from igaming_case.datasets import landing_asset
+from igaming_case.datasets import staging_asset
 
 
 def build_landing_dag(table):
@@ -19,7 +19,7 @@ def build_landing_dag(table):
     )
     def _landing_dag():
         run_landing = CloudRunExecuteJobOperator(
-            task_id="run_file_to_landing_parquet",
+            task_id="transform_landing_to_staging_parquet",
             project_id=PROJECT_ID,
             region=REGION,
             job_name=LANDING_JOB_NAME,
@@ -27,26 +27,20 @@ def build_landing_dag(table):
             overrides={
                 "container_overrides": [
                     {
-                        "args": [
-                            "--source-uri",
-                            table.source_uri,
-                            "--destination-uri",
-                            table.landing_prefix,
-                            "--table",
-                            table.name,
-                            "--format",
-                            table.source_format,
-                            "--batch-size",
-                            "{{ var.value.get('igaming_landing_batch_size', '1000') }}",
-                            "--run-id",
-                            "{{ run_id | replace(':', '_') | replace('+', '_') }}",
+                        "env": [
+                            {"name": "TABLE_NAME", "value": table.name},
+                            {"name": "SOURCE_FORMAT", "value": table.source_format},
+                            {"name": "SOURCE_URI", "value": table.source_uri},
+                            {"name": "DESTINATION_URI", "value": table.staging_prefix},
+                            {"name": "BATCH_SIZE", "value": "{{ var.value.get('igaming_landing_batch_size', '1000') }}"},
+                            {"name": "RUN_ID", "value": "{{ run_id | replace(':', '_') | replace('+', '_') }}"},
                         ]
                     }
                 ]
             },
         )
 
-        @task(outlets=[landing_asset(table.name)])
+        @task(outlets=[staging_asset(table.name)])
         def publish_dataset() -> str:
             return table.name
 

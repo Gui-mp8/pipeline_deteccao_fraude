@@ -5,8 +5,8 @@ from pathlib import Path
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
 from airflow.sdk import dag, task
 
-from igaming_case.config import DEFAULT_ARGS, GCP_CONN_ID, LANDING_BUCKET, PROJECT_ID, TABLES, LOCAL_TZ
-from igaming_case.datasets import bronze_asset, landing_asset
+from igaming_case.config import DEFAULT_ARGS, GCP_CONN_ID, GCS_BUCKET, PROJECT_ID, TABLES, LOCAL_TZ
+from igaming_case.datasets import bronze_asset, staging_asset
 
 
 SQL_DIR = Path(__file__).parent / "sql" / "bronze"
@@ -18,7 +18,7 @@ def build_bronze_dag(table):
         dag_id=f"igaming_bronze_{table.name}",
         default_args=DEFAULT_ARGS,
         start_date=LOCAL_TZ.datetime(2026, 1, 1),
-        schedule=[landing_asset(table.name)],
+        schedule=[staging_asset(table.name)],
         catchup=False,
         max_active_runs=1,
         tags=["igaming", "bronze", table.name],
@@ -35,7 +35,7 @@ def build_bronze_dag(table):
             },
             params={
                 "project_id": PROJECT_ID,
-                "landing_bucket": LANDING_BUCKET,
+                "gcs_bucket": GCS_BUCKET,
             },
         )
 
