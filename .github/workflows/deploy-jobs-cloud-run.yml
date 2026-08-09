@@ -24,9 +24,9 @@ permissions:
   id-token: write
 
 env:
-  DEFAULT_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
-  DEFAULT_REGION: ${{ vars.GCP_REGION || 'southamerica-east1' }}
-  DEFAULT_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.JOBS_ARTIFACT_REGISTRY_REPOSITORY || 'fraud-jobs' }}
+  DEFAULT_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'case-grupo-otg1' }}
+  DEFAULT_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  DEFAULT_ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.JOBS_ARTIFACT_REGISTRY_REPOSITORY || 'gar-imagens' }}
 
 jobs:
   test:
@@ -39,7 +39,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.14"
 
       - name: Install test dependencies
         run: |
