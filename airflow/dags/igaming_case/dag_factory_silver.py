@@ -1,23 +1,23 @@
 from __future__ import annotations
 
-from airflow.decorators import task
-from airflow.models.dag import DAG
 from airflow.providers.google.cloud.operators.cloud_run import CloudRunExecuteJobOperator
+from airflow.sdk import dag, task
 
 from igaming_case.config import DEFAULT_ARGS, DBT_JOB_NAME, GCP_CONN_ID, PROJECT_ID, REGION, TABLES, LOCAL_TZ
-from igaming_case.datasets import bronze_dataset, silver_dataset
+from igaming_case.datasets import bronze_asset, silver_asset
 
 
 def build_silver_dag(table):
-    with DAG(
+    @dag(
         dag_id=f"igaming_silver_{table.name}",
         default_args=DEFAULT_ARGS,
         start_date=LOCAL_TZ.datetime(2026, 1, 1),
-        schedule=[bronze_dataset(table.name)],
+        schedule=[bronze_asset(table.name)],
         catchup=False,
         max_active_runs=1,
         tags=["igaming", "silver", table.name],
-    ) as dag:
+    )
+    def _silver_dag():
         build_model = CloudRunExecuteJobOperator(
             task_id="dbt_build_silver_model",
             project_id=PROJECT_ID,
@@ -37,13 +37,13 @@ def build_silver_dag(table):
             },
         )
 
-        @task(outlets=[silver_dataset(table.name)])
+        @task(outlets=[silver_asset(table.name)])
         def publish_dataset() -> str:
             return table.name
 
         build_model >> publish_dataset()
 
-    return dag
+    return _silver_dag()
 
 
 for table_config in TABLES:

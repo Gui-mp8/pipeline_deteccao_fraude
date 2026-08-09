@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from airflow.datasets import Dataset
+from airflow.sdk import Asset
 
 
-def landing_dataset(table: str) -> Dataset:
-    return Dataset(f"gcs://igaming-case/landing/{table}")
+def landing_asset(table: str) -> Asset:
+    return Asset(f"gcs://igaming-case/landing/{table}")
 
 
-def bronze_dataset(table: str) -> Dataset:
-    return Dataset(f"bq://igaming-case/bronze/{table}")
+def bronze_asset(table: str) -> Asset:
+    return Asset(f"bq://igaming-case/bronze/{table}")
 
 
-def silver_dataset(table: str) -> Dataset:
-    return Dataset(f"bq://igaming-case/silver/{table}")
+def silver_asset(table: str) -> Asset:
+    return Asset(f"bq://igaming-case/silver/{table}")
 
 
-def gold_dataset(model: str) -> Dataset:
-    return Dataset(f"bq://igaming-case/gold/{model}")
+def gold_asset(model: str) -> Asset:
+    return Asset(f"bq://igaming-case/gold/{model}")

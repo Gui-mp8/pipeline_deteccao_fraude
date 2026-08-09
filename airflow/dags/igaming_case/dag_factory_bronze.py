@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from airflow.decorators import task
-from airflow.models.dag import DAG
 from airflow.providers.google.cloud.operators.bigquery import BigQueryInsertJobOperator
+from airflow.sdk import dag, task
 
 from igaming_case.config import DEFAULT_ARGS, GCP_CONN_ID, LANDING_BUCKET, PROJECT_ID, TABLES, LOCAL_TZ
-from igaming_case.datasets import bronze_dataset, landing_dataset
+from igaming_case.datasets import bronze_asset, landing_asset
 
 
 SQL_DIR = Path(__file__).parent / "sql" / "bronze"
@@ -15,15 +14,16 @@ SQL_DIR = Path(__file__).parent / "sql" / "bronze"
 
 def build_bronze_dag(table):
     sql = (SQL_DIR / f"{table.name}.sql").read_text(encoding="utf-8")
-    with DAG(
+    @dag(
         dag_id=f"igaming_bronze_{table.name}",
         default_args=DEFAULT_ARGS,
         start_date=LOCAL_TZ.datetime(2026, 1, 1),
-        schedule=[landing_dataset(table.name)],
+        schedule=[landing_asset(table.name)],
         catchup=False,
         max_active_runs=1,
         tags=["igaming", "bronze", table.name],
-    ) as dag:
+    )
+    def _bronze_dag():
         create_external_table = BigQueryInsertJobOperator(
             task_id="create_or_replace_external_table",
             gcp_conn_id=GCP_CONN_ID,
@@ -39,13 +39,13 @@ def build_bronze_dag(table):
             },
         )
 
-        @task(outlets=[bronze_dataset(table.name)])
+        @task(outlets=[bronze_asset(table.name)])
         def publish_dataset() -> str:
             return table.name
 
         create_external_table >> publish_dataset()
 
-    return dag
+    return _bronze_dag()
 
 
 for table_config in TABLES:
