@@ -9,12 +9,12 @@
 declare gcs_bucket string default '${GCS_BUCKET}';
 
 execute immediate format("""
-create schema if not exists `%s.fraude_bronze`
-options(location = 'southamerica-east1')
+create schema if not exists `%s.case_bronze`
+options(location = 'us-central1')
 """, '${GCP_PROJECT_ID}');
 
 execute immediate format("""
-create or replace external table `%s.fraude_bronze.players`
+create or replace external table `%s.case_bronze.players`
 options (
   format = 'PARQUET',
   uris = ['gs://%s/staging/players/dt=*/*.parquet'],
@@ -24,7 +24,7 @@ options (
 """, '${GCP_PROJECT_ID}', gcs_bucket, gcs_bucket);
 
 execute immediate format("""
-create or replace external table `%s.fraude_bronze.sessions`
+create or replace external table `%s.case_bronze.sessions`
 options (
   format = 'PARQUET',
   uris = ['gs://%s/staging/sessions/dt=*/*.parquet'],
@@ -34,7 +34,7 @@ options (
 """, '${GCP_PROJECT_ID}', gcs_bucket, gcs_bucket);
 
 execute immediate format("""
-create or replace external table `%s.fraude_bronze.transactions`
+create or replace external table `%s.case_bronze.transactions`
 options (
   format = 'PARQUET',
   uris = ['gs://%s/staging/transactions/dt=*/*.parquet'],
@@ -44,7 +44,7 @@ options (
 """, '${GCP_PROJECT_ID}', gcs_bucket, gcs_bucket);
 
 execute immediate format("""
-create or replace external table `%s.fraude_bronze.affiliate_cpa_ftd`
+create or replace external table `%s.case_bronze.affiliate_cpa_ftd`
 options (
   format = 'PARQUET',
   uris = ['gs://%s/staging/affiliate_cpa_ftd/ingest_date=*/*.parquet'],

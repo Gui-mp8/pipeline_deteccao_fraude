@@ -3,8 +3,8 @@ version: 2
 sources:
   - name: raw_fraud
     database: "{{ env_var('GCP_PROJECT_ID', 'case-grupo-otg1') }}"
-    schema: "{{ env_var('BRONZE_DATASET', 'fraude_bronze') }}"
-    description: "External BigQuery tables backed by landing Parquet files in Cloud Storage."
+    schema: "{{ env_var('BRONZE_DATASET', 'case_bronze') }}"
+    description: "External BigQuery tables backed by staging Parquet files in Cloud Storage."
     tables:
       - name: players
         description: "Raw player registration data, one row per player as provided by the source."

@@ -1,7 +1,7 @@
-create schema if not exists `{{ params.project_id }}.fraude_bronze`
-options(location = 'southamerica-east1');
+create schema if not exists `{{ params.project_id }}.{{ params.bronze_dataset }}`
+options(location = '{{ params.bigquery_location }}');
 
-create or replace external table `{{ params.project_id }}.fraude_bronze.transactions`
+create or replace external table `{{ params.project_id }}.{{ params.bronze_dataset }}.transactions`
 options (
   format = 'PARQUET',
   uris = ['gs://{{ params.gcs_bucket }}/staging/transactions/dt=*/*.parquet'],

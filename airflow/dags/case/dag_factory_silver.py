@@ -3,23 +3,23 @@ from __future__ import annotations
 from airflow.providers.google.cloud.operators.cloud_run import CloudRunExecuteJobOperator
 from airflow.sdk import dag, task
 
-from igaming_case.config import DEFAULT_ARGS, DBT_JOB_NAME, GCP_CONN_ID, GOLD_MODELS, PROJECT_ID, REGION, LOCAL_TZ
-from igaming_case.datasets import gold_asset, silver_asset
+from case.config import DEFAULT_ARGS, DBT_JOB_NAME, GCP_CONN_ID, PROJECT_ID, REGION, TABLES, LOCAL_TZ
+from case.datasets import bronze_asset, silver_asset
 
 
-def build_gold_dag(model_name: str, upstream_tables: tuple[str, ...]):
+def build_silver_dag(table):
     @dag(
-        dag_id=f"igaming_gold_{model_name.removeprefix('gold_')}",
+        dag_id=f"case_silver_{table.name}",
         default_args=DEFAULT_ARGS,
         start_date=LOCAL_TZ.datetime(2026, 1, 1),
-        schedule=[silver_asset(table) for table in upstream_tables],
+        schedule=[bronze_asset(table.name)],
         catchup=False,
         max_active_runs=1,
-        tags=["igaming", "gold", model_name],
+        tags=["case", "silver", table.name],
     )
-    def _gold_dag():
+    def _silver_dag():
         build_model = CloudRunExecuteJobOperator(
-            task_id="dbt_build_gold_model",
+            task_id="dbt_build_silver_model",
             project_id=PROJECT_ID,
             region=REGION,
             job_name=DBT_JOB_NAME,
@@ -30,21 +30,21 @@ def build_gold_dag(model_name: str, upstream_tables: tuple[str, ...]):
                         "args": [
                             "build",
                             "--select",
-                            model_name,
+                            table.silver_model,
                         ]
                     }
                 ]
             },
         )
 
-        @task(outlets=[gold_asset(model_name)])
+        @task(outlets=[silver_asset(table.name)])
         def publish_dataset() -> str:
-            return model_name
+            return table.name
 
         build_model >> publish_dataset()
 
-    return _gold_dag()
+    return _silver_dag()
 
 
-for gold_model, dependencies in GOLD_MODELS.items():
-    globals()[f"igaming_gold_{gold_model}"] = build_gold_dag(gold_model, dependencies)
+for table_config in TABLES:
+    globals()[f"case_silver_{table_config.name}"] = build_silver_dag(table_config)
