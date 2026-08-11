@@ -7,3 +7,4 @@ select
   safe_cast(ftd as int64) as ftd,
   safe_cast(cpa_value as numeric) as cpa_value
 from {{ source('raw_fraud', 'affiliate_cpa_ftd') }}
+where {{ bronze_partition_filter('ingest_date') }}

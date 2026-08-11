@@ -4,3 +4,4 @@ select
   cast(city as string) as city,
   safe_cast(created_at as date) as created_at
 from {{ source('raw_fraud', 'players') }}
+where {{ bronze_partition_filter('dt') }}

@@ -5,3 +5,4 @@ select
   safe_cast(amount as numeric) as amount,
   safe_cast(timestamp as timestamp) as transaction_at
 from {{ source('raw_fraud', 'transactions') }}
+where {{ bronze_partition_filter('dt') }}
