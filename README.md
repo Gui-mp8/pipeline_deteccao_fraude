@@ -42,9 +42,10 @@ Camadas:
 ```text
 airflow/                    # Astro Airflow e DAG factories
 dbt/                        # Projeto dbt BigQuery
-ddl/bigquery/               # DDL Bronze standalone
+ddl/datasets/               # YAMLs de datasets BigQuery
+ddl/tables/                 # DDLs de tabelas BigQuery aplicados via CI/CD
 jobs/case                   # Cloud Run Job Python CSV/JSON -> Parquet
-.github/workflows/          # CI/CD para dbt e jobs Python
+.github/workflows/          # CI/CD para BigQuery, dbt e jobs Python
 tests/jobs/                 # Pytest do job de landing
 ```
 
@@ -113,28 +114,29 @@ dbt build --select tag:gold --profiles-dir .
 
 ## Airflow
 
-As DAGs sao geradas por factories em `airflow/dags/igaming_case`:
+As DAGs sao geradas por factories em `airflow/dags/case`:
 
 | Camada | Padrao de DAG |
 |---|---|
-| Landing/Staging | `igaming_landing_<tabela>` executa Cloud Run Job Python, le landing bruta e publica Asset da staging. |
-| Bronze | `igaming_bronze_<tabela>` executa DDL BigQuery sobre a staging e publica Asset BQ. |
-| Silver | `igaming_silver_<tabela>` executa `dbt build --select slv_*` no Cloud Run. |
-| Gold | `igaming_gold_<modelo>` executa `dbt build --select gold_*` apos os Datasets Silver necessarios. |
+| Bronze | `case_bronze_<tabela>` executa Cloud Run Job Python, le landing bruta, grava staging em Parquet, valida a tabela externa criada via CI/CD e publica Asset BQ. |
+| Silver | `case_silver_<tabela>` executa `dbt build --select slv_*` no Cloud Run. |
+| Gold | `case_gold_<modelo>` executa `dbt build --select gold_*` apos os Datasets Silver necessarios. |
 
 Variaveis Airflow esperadas:
 
 ```text
-igaming_gcp_project_id
-igaming_gcp_region
-igaming_gcs_bucket
-igaming_landing_job_name
-igaming_dbt_job_name
-igaming_dbt_target
-igaming_players_source_uri
-igaming_sessions_source_uri
-igaming_transactions_source_uri
-igaming_affiliate_source_uri
+case_gcp_project_id
+case_gcp_region
+case_bigquery_location
+case_gcs_bucket
+case_bronze_dataset
+case_landing_job_name
+case_dbt_job_name
+case_dbt_target
+case_players_source_uri
+case_sessions_source_uri
+case_transactions_source_uri
+case_affiliate_source_uri
 ```
 
 ## CI/CD
@@ -143,7 +145,8 @@ Workflows:
 
 | Workflow | Responsabilidade |
 |---|---|
-| `.github/workflows/deploy-dbt-cloud-run.yml` | Build da imagem dbt, `dbt parse`, push no Artifact Registry e deploy como Cloud Run Job. |
+| `.github/workflows/deploy-bigquery-ddl.yml` | Cria datasets BigQuery a partir de YAMLs e aplica DDLs SQL alterados. |
+| `.github/workflows/deploy-dbt-cloud-run.yml` | Builda a imagem dbt, valida com `dbt parse`, faz push no Artifact Registry e deploya o Cloud Run Job do dbt. |
 | `.github/workflows/deploy-jobs-cloud-run.yml` | Roda pytest, detecta subpastas alteradas em `jobs/`, builda uma imagem por job e deploya Cloud Run Jobs separados. |
 
 Autenticacao recomendada: Workload Identity Federation.

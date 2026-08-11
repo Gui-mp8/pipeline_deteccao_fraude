@@ -5,8 +5,8 @@ pipeline_deteccao_fraude:
       type: bigquery
       method: oauth
       project: "{{ env_var('GCP_PROJECT_ID', 'case-grupo-otg1') }}"
-      dataset: "{{ env_var('DBT_DATASET', 'fraude_dev') }}"
-      location: "{{ env_var('GCP_LOCATION', 'southamerica-east1') }}"
+      dataset: "{{ env_var('DBT_DATASET', 'case_silver') }}"
+      location: "{{ env_var('GCP_LOCATION', 'us-central1') }}"
       threads: 4
       job_execution_timeout_seconds: 300
       job_retries: 1
@@ -14,8 +14,8 @@ pipeline_deteccao_fraude:
       type: bigquery
       method: oauth
       project: "{{ env_var('GCP_PROJECT_ID', 'case-grupo-otg1') }}"
-      dataset: "{{ env_var('DBT_DATASET', 'fraude') }}"
-      location: "{{ env_var('GCP_LOCATION', 'southamerica-east1') }}"
+      dataset: "{{ env_var('DBT_DATASET', 'case_silver') }}"
+      location: "{{ env_var('GCP_LOCATION', 'us-central1') }}"
       threads: 4
       job_execution_timeout_seconds: 600
       job_retries: 2

@@ -1,0 +1,4 @@
+project_id: case-grupo-otg1
+dataset_id: case_silver
+location: us-central1
+description: Camada silver do case com dados limpos, tipados e deduplicados pelo dbt.

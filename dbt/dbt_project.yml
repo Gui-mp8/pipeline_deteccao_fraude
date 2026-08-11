@@ -18,15 +18,15 @@ clean-targets:
 models:
   pipeline_deteccao_fraude:
     bronze:
-      +schema: bronze
+      +schema: case_bronze
       +materialized: view
       +tags: ["bronze"]
     silver:
-      +schema: silver
+      +schema: case_silver
       +materialized: incremental
       +on_schema_change: sync_all_columns
       +tags: ["silver"]
     gold:
-      +schema: gold
+      +schema: case_gold
       +materialized: table
       +tags: ["gold"]
