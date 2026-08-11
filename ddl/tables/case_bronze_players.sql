@@ -10,8 +10,8 @@ WITH PARTITION COLUMNS (
 )
 OPTIONS (
   FORMAT = 'PARQUET',
-  URIS = ['gs://case-grupo-otg1/staging/players/dt=*/*.parquet'],
+  URIS = ['gs://case-grupo-otg1/staging/players/*'],
   HIVE_PARTITION_URI_PREFIX = 'gs://case-grupo-otg1/staging/players',
-  REQUIRE_HIVE_PARTITION_FILTER = FALSE,
+  REQUIRE_HIVE_PARTITION_FILTER = TRUE,
   DESCRIPTION = "Tabela bronze externa de jogadores em Parquet no Cloud Storage"
 );

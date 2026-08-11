@@ -13,8 +13,8 @@ WITH PARTITION COLUMNS (
 )
 OPTIONS (
   FORMAT = 'PARQUET',
-  URIS = ['gs://case-grupo-otg1/staging/affiliate_cpa_ftd/ingest_date=*/*.parquet'],
+  URIS = ['gs://case-grupo-otg1/staging/affiliate_cpa_ftd/*'],
   HIVE_PARTITION_URI_PREFIX = 'gs://case-grupo-otg1/staging/affiliate_cpa_ftd',
-  REQUIRE_HIVE_PARTITION_FILTER = FALSE,
+  REQUIRE_HIVE_PARTITION_FILTER = TRUE,
   DESCRIPTION = "Tabela bronze externa de afiliados CPA/FTD em Parquet no Cloud Storage"
 );
