@@ -1,7 +1,18 @@
-create or replace external table `case-grupo-otg1.case_bronze.sessions`
-options (
-  format = 'PARQUET',
-  uris = ['gs://case-grupo-otg1/staging/sessions/dt=*/*.parquet'],
-  hive_partition_uri_prefix = 'gs://case-grupo-otg1/staging/sessions',
-  require_hive_partition_filter = false
+CREATE OR REPLACE EXTERNAL TABLE `case-grupo-otg1.case_bronze.sessions`
+(
+  session_id  STRING OPTIONS(DESCRIPTION="Identificador unico da sessao")
+  ,player_id  STRING OPTIONS(DESCRIPTION="Identificador do jogador associado a sessao")
+  ,ip         STRING OPTIONS(DESCRIPTION="Endereco IP utilizado na sessao")
+  ,device     STRING OPTIONS(DESCRIPTION="Dispositivo utilizado na sessao")
+  ,timestamp  STRING OPTIONS(DESCRIPTION="Timestamp do evento de sessao")
+)
+WITH PARTITION COLUMNS (
+  dt DATE
+)
+OPTIONS (
+  FORMAT = 'PARQUET',
+  URIS = ['gs://case-grupo-otg1/staging/sessions/dt=*/*.parquet'],
+  HIVE_PARTITION_URI_PREFIX = 'gs://case-grupo-otg1/staging/sessions',
+  REQUIRE_HIVE_PARTITION_FILTER = FALSE,
+  DESCRIPTION = "Tabela bronze externa de sessoes em Parquet no Cloud Storage"
 );
