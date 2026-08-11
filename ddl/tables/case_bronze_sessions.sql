@@ -11,8 +11,8 @@ WITH PARTITION COLUMNS (
 )
 OPTIONS (
   FORMAT = 'PARQUET',
-  URIS = ['gs://case-grupo-otg1/staging/sessions/dt=*/*.parquet'],
+  URIS = ['gs://case-grupo-otg1/staging/sessions/*'],
   HIVE_PARTITION_URI_PREFIX = 'gs://case-grupo-otg1/staging/sessions',
-  REQUIRE_HIVE_PARTITION_FILTER = FALSE,
+  REQUIRE_HIVE_PARTITION_FILTER = TRUE,
   DESCRIPTION = "Tabela bronze externa de sessoes em Parquet no Cloud Storage"
 );

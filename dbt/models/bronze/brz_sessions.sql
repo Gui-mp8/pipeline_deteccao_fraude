@@ -5,3 +5,4 @@ select
   cast(device as string) as device,
   safe_cast(timestamp as timestamp) as session_at
 from {{ source('raw_fraud', 'sessions') }}
+where {{ bronze_partition_filter('dt') }}
