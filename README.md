@@ -118,8 +118,7 @@ As DAGs sao geradas por factories em `airflow/dags/case`:
 
 | Camada | Padrao de DAG |
 |---|---|
-| Landing/Staging | `case_landing_<tabela>` executa Cloud Run Job Python, le landing bruta e publica Asset da staging. |
-| Bronze | `case_bronze_<tabela>` valida a tabela externa criada via CI/CD e publica Asset BQ. |
+| Bronze | `case_bronze_<tabela>` executa Cloud Run Job Python, le landing bruta, grava staging em Parquet, valida a tabela externa criada via CI/CD e publica Asset BQ. |
 | Silver | `case_silver_<tabela>` executa `dbt build --select slv_*` no Cloud Run. |
 | Gold | `case_gold_<modelo>` executa `dbt build --select gold_*` apos os Datasets Silver necessarios. |
 
