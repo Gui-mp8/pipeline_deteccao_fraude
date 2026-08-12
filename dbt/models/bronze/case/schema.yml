@@ -1,0 +1,71 @@
+version: 2
+
+sources:
+  - name: case_bronze
+    description: "External BigQuery tables over parquet files stored in the bronze layer."
+    database: case-grupo-otg1
+    schema: case_bronze
+    tables:
+      - name: players
+        description: "Raw players table converted from landing JSON to parquet."
+        columns:
+          - name: player_id
+            description: "Player identifier from the source file."
+            data_tests:
+              - not_null:
+                  config:
+                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+          - name: dt
+            description: "Hive partition date."
+            data_tests:
+              - not_null:
+                  config:
+                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+
+      - name: sessions
+        description: "Raw sessions table converted from landing JSON to parquet."
+        columns:
+          - name: session_id
+            description: "Session identifier from the source file."
+            data_tests:
+              - not_null:
+                  config:
+                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+          - name: dt
+            description: "Hive partition date."
+            data_tests:
+              - not_null:
+                  config:
+                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+
+      - name: transactions
+        description: "Raw transactions table converted from landing CSV to parquet."
+        columns:
+          - name: transaction_id
+            description: "Transaction identifier from the source file."
+            data_tests:
+              - not_null:
+                  config:
+                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+          - name: dt
+            description: "Hive partition date."
+            data_tests:
+              - not_null:
+                  config:
+                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+
+      - name: affiliate_cpa_ftd
+        description: "Raw affiliate CPA and FTD table converted from landing CSV to parquet."
+        columns:
+          - name: affiliate_id
+            description: "Affiliate identifier from the source file."
+            data_tests:
+              - not_null:
+                  config:
+                    where: "ingest_date >= DATE('1900-01-01') AND ingest_date <= CURRENT_DATE()"
+          - name: ingest_date
+            description: "Hive partition date."
+            data_tests:
+              - not_null:
+                  config:
+                    where: "ingest_date >= DATE('1900-01-01') AND ingest_date <= CURRENT_DATE()"

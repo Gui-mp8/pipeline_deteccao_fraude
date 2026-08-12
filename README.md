@@ -43,7 +43,6 @@ Camadas:
 airflow/                    # Astro Airflow e DAG factories
 airflow/include/            # Config, datasets e TaskGroups reutilizaveis
 dbt/                        # Projeto dbt BigQuery
-dbt/models/bronze/case      # Sources e testes bronze do case
 dbt/models/silver/case      # schema.yml e modelos silver do case
 dbt/models/gold/case        # schema.yml e modelos gold do case
 ddl/datasets/               # YAMLs de datasets BigQuery
@@ -86,7 +85,7 @@ Modelos principais:
 
 | Camada | Modelos |
 |---|---|
-| Bronze | External tables criadas via DDL e testadas como `sources` no dbt |
+| Bronze | External tables criadas via DDL no BigQuery |
 | Silver | `slv_players`, `slv_sessions`, `slv_transactions`, `slv_affiliate_cpa_ftd` |
 | Gold | `gold_fraud_overview`, `gold_affiliate_metrics`, `gold_financial_signals` |
 
@@ -123,7 +122,7 @@ As DAGs sao geradas por factories em `airflow/dags/case`:
 | Camada | Padrao de DAG |
 |---|---|
 | Bronze | `case_bronze_<tabela>` executa Cloud Run Job Python, le landing bruta, grava staging em Parquet e publica Asset BQ. |
-| Silver | `case_silver_<tabela>` executa `dbt test --select source:raw_fraud.<tabela>` e depois `dbt build --select slv_*` no Cloud Run. |
+| Silver | `case_silver_<tabela>` executa `dbt build --select slv_*` no Cloud Run lendo a bronze externa diretamente. |
 | Gold | `case_gold_<modelo>` executa `dbt build --select gold_*` apos os Datasets Silver necessarios. |
 
 Variaveis Airflow esperadas:

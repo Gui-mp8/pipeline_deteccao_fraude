@@ -24,7 +24,7 @@ SELECT
   ) AS ftd_rate,
   SUM(CAST(registrations AS INT64)) > SUM(CAST(clicks AS INT64)) AS has_registration_over_click_anomaly,
   SUM(CAST(ftd AS INT64)) > SUM(CAST(registrations AS INT64)) AS has_ftd_over_registration_anomaly
-FROM {{ source('raw_fraud', 'affiliate_cpa_ftd') }}
+FROM {{ source('case_bronze', 'affiliate_cpa_ftd') }}
 WHERE affiliate_id IS NOT NULL
   AND player_id IS NOT NULL
   AND country IS NOT NULL
