@@ -22,13 +22,12 @@ WITH source_data AS (
     dt
   FROM {{ source('case_bronze', 'players') }}
   WHERE player_id IS NOT NULL
+    AND {{ bronze_partition_filter('dt') }}
     {% if is_incremental() %}
-      AND dt >= (
+      AND CAST(created_at AS DATE) >= (
         SELECT COALESCE(MAX(created_at), DATE('1900-01-01'))
         FROM {{ this }}
       )
-    {% else %}
-      AND {{ bronze_partition_filter('dt') }}
     {% endif %}
 ),
 
