@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from airflow.providers.google.cloud.operators.cloud_run import CloudRunExecuteJobOperator
-from airflow.sdk import dag, task
+from airflow.sdk import dag
 
-from case.config import DEFAULT_ARGS, DBT_JOB_NAME, GCP_CONN_ID, GOLD_MODELS, PROJECT_ID, REGION, LOCAL_TZ
-from case.datasets import gold_asset, silver_asset
+from include.task_groups.dbt_cloud_run import TaskStrategyDbtCloudRunTG
+from include.utils.config import CONFIG, DEFAULT_ARGS, GOLD_MODELS, LOCAL_TZ
+from include.utils.datasets import silver_dataset
 
 
 def build_gold_dag(model_name: str, upstream_tables: tuple[str, ...]):
@@ -12,36 +12,20 @@ def build_gold_dag(model_name: str, upstream_tables: tuple[str, ...]):
         dag_id=f"case_gold_{model_name.removeprefix('gold_')}",
         default_args=DEFAULT_ARGS,
         start_date=LOCAL_TZ.datetime(2026, 1, 1),
-        schedule=[silver_asset(table) for table in upstream_tables],
+        schedule=[silver_dataset(CONFIG["project_directory"], table) for table in upstream_tables],
         catchup=False,
         max_active_runs=1,
         tags=["case", "gold", model_name],
     )
     def _gold_dag():
-        build_model = CloudRunExecuteJobOperator(
-            task_id="dbt_build_gold_model",
-            project_id=PROJECT_ID,
-            region=REGION,
-            job_name=DBT_JOB_NAME,
-            gcp_conn_id=GCP_CONN_ID,
-            overrides={
-                "container_overrides": [
-                    {
-                        "args": [
-                            "build",
-                            "--select",
-                            model_name,
-                        ]
-                    }
-                ]
-            },
+        TaskStrategyDbtCloudRunTG(
+            group_id="dbt_build_gold",
+            config=CONFIG,
+            schema_key=model_name,
+            dbt_select=model_name,
+            layer="ouro",
+            deps=[silver_dataset(CONFIG["project_directory"], table) for table in upstream_tables],
         )
-
-        @task(outlets=[gold_asset(model_name)])
-        def publish_dataset() -> str:
-            return model_name
-
-        build_model >> publish_dataset()
 
     return _gold_dag()
 

@@ -1,9 +1,9 @@
 CREATE OR REPLACE EXTERNAL TABLE `case-grupo-otg1.case_bronze.players`
 (
-  player_id   STRING OPTIONS(DESCRIPTION="Identificador unico do jogador")
-  ,email      STRING OPTIONS(DESCRIPTION="Email informado no cadastro do jogador")
-  ,city       STRING OPTIONS(DESCRIPTION="Cidade informada no cadastro do jogador")
-  ,created_at STRING OPTIONS(DESCRIPTION="Timestamp de criacao do cadastro do jogador")
+  player_id   STRING OPTIONS(DESCRIPTION="Identificador unico do jogador"),
+  email       STRING OPTIONS(DESCRIPTION="Email informado no cadastro do jogador"),
+  city        STRING OPTIONS(DESCRIPTION="Cidade informada no cadastro do jogador"),
+  created_at  STRING OPTIONS(DESCRIPTION="Timestamp de criacao do cadastro do jogador")
 )
 WITH PARTITION COLUMNS (
   dt DATE

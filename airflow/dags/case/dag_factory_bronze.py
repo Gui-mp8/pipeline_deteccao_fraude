@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-from airflow.providers.google.cloud.operators.cloud_run import CloudRunExecuteJobOperator
-from airflow.sdk import dag, task
+from airflow.sdk import dag
 
-from case.config import (
+from include.task_groups.landing_to_bronze_cloud_run import TaskStrategyLandingToBronzeCloudRunTG
+from include.utils.config import (
+    CONFIG,
     DEFAULT_ARGS,
-    GCP_CONN_ID,
-    LANDING_JOB_NAME,
     LOCAL_TZ,
-    PROJECT_ID,
-    REGION,
     TABLES,
 )
-from case.datasets import bronze_asset
 
 
 def build_bronze_dag(table):
@@ -26,33 +22,11 @@ def build_bronze_dag(table):
         tags=["case", "bronze", table.name],
     )
     def _bronze_dag():
-        run_landing_to_staging = CloudRunExecuteJobOperator(
-            task_id="transform_landing_to_staging_parquet",
-            project_id=PROJECT_ID,
-            region=REGION,
-            job_name=LANDING_JOB_NAME,
-            gcp_conn_id=GCP_CONN_ID,
-            overrides={
-                "container_overrides": [
-                    {
-                        "env": [
-                            {"name": "TABLE_NAME", "value": table.name},
-                            {"name": "SOURCE_FORMAT", "value": table.source_format},
-                            {"name": "SOURCE_URI", "value": table.source_uri},
-                            {"name": "DESTINATION_URI", "value": table.staging_prefix},
-                            {"name": "BATCH_SIZE", "value": "{{ var.value.get('case_landing_batch_size', '1000') }}"},
-                            {"name": "RUN_ID", "value": "{{ run_id | replace(':', '_') | replace('+', '_') }}"},
-                        ]
-                    }
-                ]
-            },
+        TaskStrategyLandingToBronzeCloudRunTG(
+            group_id="landing_to_bronze",
+            config=CONFIG,
+            table=table,
         )
-
-        @task(outlets=[bronze_asset(table.name)])
-        def publish_bronze_dataset() -> str:
-            return table.name
-
-        run_landing_to_staging >> publish_bronze_dataset()
 
     return _bronze_dag()
 

@@ -1,12 +1,12 @@
 CREATE OR REPLACE EXTERNAL TABLE `case-grupo-otg1.case_bronze.affiliate_cpa_ftd`
 (
-  affiliate_id   STRING OPTIONS(DESCRIPTION="Identificador do afiliado")
-  ,player_id     STRING OPTIONS(DESCRIPTION="Identificador do jogador vinculado ao afiliado")
-  ,country       STRING OPTIONS(DESCRIPTION="Pais do jogador")
-  ,clicks        STRING OPTIONS(DESCRIPTION="Quantidade de cliques gerados pelo afiliado")
-  ,registrations STRING OPTIONS(DESCRIPTION="Quantidade de registros gerados pelo afiliado")
-  ,ftd           STRING OPTIONS(DESCRIPTION="Quantidade de primeiros depositos")
-  ,cpa_value     STRING OPTIONS(DESCRIPTION="Valor de CPA associado ao afiliado")
+  affiliate_id   STRING OPTIONS(DESCRIPTION="Identificador do afiliado"),
+  player_id      STRING OPTIONS(DESCRIPTION="Identificador do jogador vinculado ao afiliado"),
+  country        STRING OPTIONS(DESCRIPTION="Pais do jogador"),
+  clicks         STRING OPTIONS(DESCRIPTION="Quantidade de cliques gerados pelo afiliado"),
+  registrations  STRING OPTIONS(DESCRIPTION="Quantidade de registros gerados pelo afiliado"),
+  ftd            STRING OPTIONS(DESCRIPTION="Quantidade de primeiros depositos"),
+  cpa_value      STRING OPTIONS(DESCRIPTION="Valor de CPA associado ao afiliado")
 )
 WITH PARTITION COLUMNS (
   ingest_date DATE

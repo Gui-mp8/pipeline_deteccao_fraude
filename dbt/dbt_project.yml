@@ -17,10 +17,6 @@ clean-targets:
 
 models:
   pipeline_deteccao_fraude:
-    bronze:
-      +schema: case_bronze
-      +materialized: view
-      +tags: ["bronze"]
     silver:
       +schema: case_silver
       +materialized: incremental

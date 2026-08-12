@@ -1,4 +1,4 @@
-# Pipeline de Deteccao de Fraude - iGaming
+# Pipeline de Deteccao de Fraude
 
 Projeto para o case tecnico de Engenharia de Dados, Observabilidade e Deteccao de Fraudes. A solucao le dados CSV/JSON da landing no GCS, converte para Parquet na staging, cria Bronze no BigQuery, transforma com dbt em Silver/Gold e orquestra tudo com Airflow usando Assets.
 
@@ -41,7 +41,11 @@ Camadas:
 
 ```text
 airflow/                    # Astro Airflow e DAG factories
+airflow/include/            # Config, datasets e TaskGroups reutilizaveis
 dbt/                        # Projeto dbt BigQuery
+dbt/models/bronze/case      # Sources e testes bronze do case
+dbt/models/silver/case      # schema.yml e modelos silver do case
+dbt/models/gold/case        # schema.yml e modelos gold do case
 ddl/datasets/               # YAMLs de datasets BigQuery
 ddl/tables/                 # DDLs de tabelas BigQuery aplicados via CI/CD
 jobs/case                   # Cloud Run Job Python CSV/JSON -> Parquet
@@ -82,7 +86,7 @@ Modelos principais:
 
 | Camada | Modelos |
 |---|---|
-| Bronze | `brz_players`, `brz_sessions`, `brz_transactions`, `brz_affiliate_cpa_ftd` |
+| Bronze | External tables criadas via DDL e testadas como `sources` no dbt |
 | Silver | `slv_players`, `slv_sessions`, `slv_transactions`, `slv_affiliate_cpa_ftd` |
 | Gold | `gold_fraud_overview`, `gold_affiliate_metrics`, `gold_financial_signals` |
 
@@ -119,7 +123,7 @@ As DAGs sao geradas por factories em `airflow/dags/case`:
 | Camada | Padrao de DAG |
 |---|---|
 | Bronze | `case_bronze_<tabela>` executa Cloud Run Job Python, le landing bruta, grava staging em Parquet e publica Asset BQ. |
-| Silver | `case_silver_<tabela>` valida a external table bronze e executa `dbt build --select slv_*` no Cloud Run. |
+| Silver | `case_silver_<tabela>` executa `dbt test --select source:raw_fraud.<tabela>` e depois `dbt build --select slv_*` no Cloud Run. |
 | Gold | `case_gold_<modelo>` executa `dbt build --select gold_*` apos os Datasets Silver necessarios. |
 
 Variaveis Airflow esperadas:
@@ -127,12 +131,10 @@ Variaveis Airflow esperadas:
 ```text
 case_gcp_project_id
 case_gcp_region
-case_bigquery_location
 case_gcs_bucket
-case_bronze_dataset
 case_landing_job_name
+case_landing_batch_size
 case_dbt_job_name
-case_dbt_target
 case_players_source_uri
 case_sessions_source_uri
 case_transactions_source_uri

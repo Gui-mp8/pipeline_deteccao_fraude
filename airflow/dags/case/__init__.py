@@ -1,1 +1,1 @@
-"""Airflow DAG factories for the iGaming fraud detection case."""
+"""Airflow DAG factories for the fraud detection case."""
