@@ -100,6 +100,11 @@ def test_csv_adapter_batches_and_partitions_rows(monkeypatch):
 
 
 def test_repository_saves_parquet_batch_locally(tmp_path):
+    old_partition_path = tmp_path / "staging" / "affiliate_cpa_ftd" / "ingest_date=2026-01-20"
+    old_partition_path.mkdir(parents=True)
+    old_file = old_partition_path / "old.parquet"
+    old_file.write_text("old")
+
     table = pa.Table.from_pylist(
         [
             {
@@ -124,6 +129,7 @@ def test_repository_saves_parquet_batch_locally(tmp_path):
 
     output_path = repository.save(batch)
 
+    assert not old_file.exists()
     assert "ingest_date=" in output_path
     table = pq.read_table(output_path)
     assert table.num_rows == 1
