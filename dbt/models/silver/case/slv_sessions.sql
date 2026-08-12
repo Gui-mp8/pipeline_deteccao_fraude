@@ -25,13 +25,12 @@ WITH source_data AS (
   WHERE session_id IS NOT NULL
     AND player_id IS NOT NULL
     AND timestamp IS NOT NULL
+    AND {{ bronze_partition_filter('dt') }}
     {% if is_incremental() %}
-      AND dt >= (
-        SELECT COALESCE(DATE(MAX(session_at)), DATE('1900-01-01'))
+      AND CAST(timestamp AS TIMESTAMP) >= (
+        SELECT COALESCE(MAX(session_at), TIMESTAMP('1900-01-01'))
         FROM {{ this }}
       )
-    {% else %}
-      AND {{ bronze_partition_filter('dt') }}
     {% endif %}
 ),
 

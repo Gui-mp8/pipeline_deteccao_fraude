@@ -27,13 +27,12 @@ WITH source_data AS (
     AND timestamp IS NOT NULL
     AND LOWER(CAST(type AS STRING)) IN ('deposit', 'withdraw', 'bet')
     AND CAST(amount AS NUMERIC) >= 0
+    AND {{ bronze_partition_filter('dt') }}
     {% if is_incremental() %}
-      AND dt >= (
-        SELECT COALESCE(DATE(MAX(transaction_at)), DATE('1900-01-01'))
+      AND CAST(timestamp AS TIMESTAMP) >= (
+        SELECT COALESCE(MAX(transaction_at), TIMESTAMP('1900-01-01'))
         FROM {{ this }}
       )
-    {% else %}
-      AND {{ bronze_partition_filter('dt') }}
     {% endif %}
 ),
 
