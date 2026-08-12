@@ -14,13 +14,13 @@ sources:
             data_tests:
               - not_null:
                   config:
-                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+                    where: "dt >= DATE('1900-01-01') AND dt <= DATE('9999-12-31')"
           - name: dt
             description: "Hive partition date."
             data_tests:
               - not_null:
                   config:
-                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+                    where: "dt >= DATE('1900-01-01') AND dt <= DATE('9999-12-31')"
 
       - name: sessions
         description: "Raw sessions table converted from landing JSON to parquet."
@@ -30,13 +30,13 @@ sources:
             data_tests:
               - not_null:
                   config:
-                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+                    where: "dt >= DATE('1900-01-01') AND dt <= DATE('9999-12-31')"
           - name: dt
             description: "Hive partition date."
             data_tests:
               - not_null:
                   config:
-                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+                    where: "dt >= DATE('1900-01-01') AND dt <= DATE('9999-12-31')"
 
       - name: transactions
         description: "Raw transactions table converted from landing CSV to parquet."
@@ -46,13 +46,13 @@ sources:
             data_tests:
               - not_null:
                   config:
-                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+                    where: "dt >= DATE('1900-01-01') AND dt <= DATE('9999-12-31')"
           - name: dt
             description: "Hive partition date."
             data_tests:
               - not_null:
                   config:
-                    where: "dt >= DATE('1900-01-01') AND dt <= CURRENT_DATE()"
+                    where: "dt >= DATE('1900-01-01') AND dt <= DATE('9999-12-31')"
 
       - name: affiliate_cpa_ftd
         description: "Raw affiliate CPA and FTD table converted from landing CSV to parquet."
@@ -62,10 +62,10 @@ sources:
             data_tests:
               - not_null:
                   config:
-                    where: "ingest_date >= DATE('1900-01-01') AND ingest_date <= CURRENT_DATE()"
+                    where: "ingest_date >= DATE('1900-01-01') AND ingest_date <= DATE('9999-12-31')"
           - name: ingest_date
             description: "Hive partition date."
             data_tests:
               - not_null:
                   config:
-                    where: "ingest_date >= DATE('1900-01-01') AND ingest_date <= CURRENT_DATE()"
+                    where: "ingest_date >= DATE('1900-01-01') AND ingest_date <= DATE('9999-12-31')"
