@@ -2,89 +2,125 @@ version: 2
 
 models:
   - name: slv_players
-    description: "Clean player dimension. One row per player with normalized email and registration attributes used to enrich fraud analysis."
+    description: "Tabela Silver de jogadores. Mantem uma linha por player com cadastro padronizado, email normalizado, dominio extraido e cidade tratada para enriquecer analises de risco, cohort e comportamento."
     columns:
       - name: player_id
-        description: "Stable player identifier from the source."
+        description: "Identificador unico do jogador na origem. E a chave primaria logica da dimensao de players e a chave de relacionamento com sessoes, transacoes e atribuicoes de afiliado."
         data_tests:
           - not_null
           - unique
       - name: email
-        description: "Lowercase trimmed email; useful for domain-level and duplicate-account analysis."
+        description: "Email do jogador em lowercase e sem espacos nas extremidades. Pode apoiar investigacoes de dominios suspeitos ou padroes de cadastro."
         data_tests:
           - not_null
+      - name: email_domain
+        description: "Dominio extraido do email apos o caractere @. Usado para analisar concentracao de cadastros por provedor ou dominio incomum."
+      - name: city
+        description: "Cidade informada no cadastro, com capitalizacao padronizada. Campo de segmentacao geografica para dashboard e investigacao."
       - name: created_at
-        description: "Player registration date used as the cohort field."
+        description: "Data de criacao do cadastro do jogador. Campo de particionamento e controle incremental do modelo."
 
   - name: slv_sessions
-    description: "Clean access sessions. One row per session with normalized device and parsed timestamp for behavioral analysis."
+    description: "Tabela Silver de sessoes de acesso. Mantem uma linha por sessao valida, com identificadores padronizados, IP, device normalizado e timestamp convertido para suportar sinais comportamentais de fraude."
     columns:
       - name: session_id
-        description: "Stable session identifier."
+        description: "Identificador unico da sessao na origem. E a chave primaria logica do modelo."
         data_tests:
           - not_null
           - unique
       - name: player_id
-        description: "Player associated with the session."
+        description: "Identificador do jogador associado a sessao. Relaciona cada acesso ao cadastro tratado em slv_players."
         data_tests:
           - not_null
           - relationships:
               to: ref('slv_players')
               field: player_id
+      - name: ip
+        description: "Endereco IP observado na sessao. Usado para detectar compartilhamento de IP por muitos players, possivel indicio de multi-conta ou trafego coordenado."
+      - name: device
+        description: "Tipo de dispositivo normalizado em lowercase. Usado para identificar players com variedade incomum de devices."
+      - name: session_at
+        description: "Timestamp completo da sessao convertido para TIMESTAMP. Campo de ordenacao, recencia e controle incremental."
       - name: session_date
-        description: "Date partition derived from session timestamp."
+        description: "Data derivada de session_at. Campo de particionamento do modelo e apoio a filtros temporais no BigQuery."
         data_tests:
           - not_null
-      - name: device
-        description: "Normalized device family observed in the session."
 
   - name: slv_transactions
-    description: "Clean financial movements. One row per transaction with split measures for deposits, withdrawals and bets."
+    description: "Tabela Silver de movimentacoes financeiras. Mantem uma linha por transacao valida, com tipo normalizado, valor convertido e medidas separadas de deposito, saque e aposta para calculo de sinais financeiros."
     columns:
       - name: transaction_id
-        description: "Stable transaction identifier."
+        description: "Identificador unico da transacao na origem. E a chave primaria logica do modelo."
         data_tests:
           - not_null
           - unique
       - name: player_id
-        description: "Player associated with the financial movement."
+        description: "Identificador do jogador associado a movimentacao financeira. Relaciona a transacao ao cadastro tratado em slv_players."
         data_tests:
           - not_null
           - relationships:
               to: ref('slv_players')
               field: player_id
       - name: transaction_type
-        description: "Normalized movement type accepted by the case."
+        description: "Tipo da movimentacao financeira normalizado. Valores aceitos: deposit, withdraw e bet."
         data_tests:
           - accepted_values:
               values: ["deposit", "withdraw", "bet"]
       - name: amount
-        description: "Non-negative movement amount."
+        description: "Valor monetario nao negativo da transacao, convertido para NUMERIC."
         data_tests:
           - not_null
+      - name: transaction_at
+        description: "Timestamp completo da transacao convertido para TIMESTAMP. Usado para incrementalidade, recencia e analises temporais."
       - name: transaction_date
-        description: "Date partition derived from transaction timestamp."
+        description: "Data derivada de transaction_at. Campo de particionamento do modelo e apoio a filtros temporais no BigQuery."
         data_tests:
           - not_null
+      - name: deposit_amount
+        description: "Valor da transacao quando o tipo e deposit; zero para os demais tipos. Facilita agregacoes financeiras sem CASE repetido no dashboard."
+      - name: withdraw_amount
+        description: "Valor da transacao quando o tipo e withdraw; zero para os demais tipos. Base para razao de saque sobre deposito."
+      - name: bet_amount
+        description: "Valor da transacao quando o tipo e bet; zero para os demais tipos. Base para razao de aposta sobre deposito."
 
   - name: slv_affiliate_cpa_ftd
-    description: "Clean affiliate CPA/FTD attribution. One row per affiliate, player and country with acquisition funnel anomaly flags."
+    description: "Tabela Silver de atribuicao de afiliados no grao afiliado, player e pais. Consolida clicks, cadastros, FTDs e CPA, calcula taxas do funil e marca inconsistencias de aquisicao."
     columns:
       - name: affiliate_player_country_key
-        description: "Surrogate key for the affiliate-player-country grain."
+        description: "Chave substituta gerada a partir de affiliate_id, player_id e country. Representa o grao unico da tabela."
         data_tests:
           - not_null
           - unique
+      - name: affiliate_id
+        description: "Identificador do afiliado responsavel pela aquisicao ou atribuicao do player."
       - name: player_id
-        description: "Attributed player identifier."
+        description: "Identificador do jogador atribuido ao afiliado. Relaciona a aquisicao ao cadastro tratado em slv_players."
         data_tests:
           - not_null
           - relationships:
               to: ref('slv_players')
               field: player_id
       - name: country
-        description: "Uppercase country code associated with the affiliate attribution row."
+        description: "Pais da atribuicao em codigo ISO de duas letras, normalizado em uppercase. Valores esperados no case: AR, BR, CL, CO e MX."
         data_tests:
           - not_null
           - accepted_values:
               values: ["AR", "BR", "CL", "CO", "MX"]
+      - name: clicks
+        description: "Quantidade de clicks atribuidos ao afiliado para aquele player e pais. Primeiro passo do funil de aquisicao."
+      - name: registrations
+        description: "Quantidade de cadastros atribuidos. Em um funil consistente, nao deve exceder clicks no mesmo grao agregado."
+      - name: ftd
+        description: "Quantidade de First Time Deposits atribuidos. Em um funil consistente, nao deve exceder registrations."
+      - name: cpa_value
+        description: "Valor unitario de CPA aplicado ao FTD qualificado do afiliado."
+      - name: estimated_cpa_cost
+        description: "Custo estimado de aquisicao calculado como ftd multiplicado por cpa_value."
+      - name: registration_rate
+        description: "Taxa de conversao de click para cadastro, calculada como registrations dividido por clicks."
+      - name: ftd_rate
+        description: "Taxa de conversao de cadastro para primeiro deposito, calculada como ftd dividido por registrations."
+      - name: has_registration_over_click_anomaly
+        description: "Flag verdadeira quando registrations e maior que clicks, indicando inconsistencia do funil ou possivel fraude de atribuicao."
+      - name: has_ftd_over_registration_anomaly
+        description: "Flag verdadeira quando ftd e maior que registrations, indicando impossibilidade operacional no funil ou possivel inflacao de FTD."

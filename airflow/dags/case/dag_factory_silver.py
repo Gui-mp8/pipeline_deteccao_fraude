@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from airflow.sdk import dag
 
+from include.task_groups.dbt_checks_cloud_run import TaskStrategyDbtChecksCloudRunTG
 from include.task_groups.dbt_cloud_run import TaskStrategyDbtCloudRunTG
 from include.utils.config import (
     CONFIG,
@@ -23,7 +24,16 @@ def build_silver_dag(table):
         tags=["case", "silver", table.name],
     )
     def _silver_dag():
-        TaskStrategyDbtCloudRunTG(
+        bronze_checks = TaskStrategyDbtChecksCloudRunTG(
+            group_id="dbt_check_bronze",
+            config=CONFIG,
+            dbt_select=f"source:case_bronze.{table.name}",
+            layer="bronze",
+            schema_key=table.name,
+            deps=[bronze_dataset(CONFIG["project_directory"], table.name)],
+        )
+
+        dbt_build_silver = TaskStrategyDbtCloudRunTG(
             group_id="dbt_build_silver",
             config=CONFIG,
             schema_key=table.name,
@@ -31,6 +41,8 @@ def build_silver_dag(table):
             layer="prata",
             deps=[bronze_dataset(CONFIG["project_directory"], table.name)],
         )
+
+        bronze_checks >> dbt_build_silver
 
     return _silver_dag()
 
