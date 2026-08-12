@@ -2,36 +2,122 @@ version: 2
 
 models:
   - name: gold_financial_signals
-    description: "Player-level financial aggregates and anomaly flags for risk triage."
+    description: "Mart Gold no grao player para analise financeira. Consolida transacoes de deposito, saque e aposta e cria flags de comportamento anomalo usadas na priorizacao de risco."
     columns:
       - name: player_id
+        description: "Identificador unico do jogador. Chave primaria logica da tabela e ponte com gold_fraud_overview."
         data_tests:
           - not_null
           - unique
+      - name: transaction_count
+        description: "Quantidade total de transacoes validas do player."
+      - name: deposit_count
+        description: "Quantidade de transacoes do tipo deposit realizadas pelo player."
+      - name: withdraw_count
+        description: "Quantidade de transacoes do tipo withdraw realizadas pelo player."
+      - name: bet_count
+        description: "Quantidade de transacoes do tipo bet realizadas pelo player."
+      - name: total_deposit_amount
+        description: "Valor total depositado pelo player."
+      - name: total_withdraw_amount
+        description: "Valor total sacado pelo player."
+      - name: total_bet_amount
+        description: "Valor total apostado pelo player."
       - name: withdraw_to_deposit_ratio
-        description: "Withdrawal pressure against deposits; high values can indicate abuse or laundering risk."
+        description: "Razao entre total sacado e total depositado. Valores altos sugerem pressao de saque, abuso operacional ou padrao financeiro atipico."
+      - name: bet_to_deposit_ratio
+        description: "Razao entre total apostado e total depositado. Valores muito altos indicam giro/aposta desproporcional ao valor depositado."
+      - name: has_high_withdraw_signal
+        description: "Flag verdadeira quando o saque total supera 1,5 vez o deposito total e soma pelo menos 500. E um sinal financeiro de possivel comportamento anomalo."
+      - name: has_high_bet_velocity_signal
+        description: "Flag verdadeira quando a aposta total atinge pelo menos 5 vezes o deposito total e soma pelo menos 1000. Representa giro financeiro desproporcional."
+      - name: last_transaction_at
+        description: "Timestamp da transacao mais recente do player."
 
   - name: gold_affiliate_metrics
-    description: "Affiliate-country performance mart for dashboarding CPA efficiency and suspicious funnel behavior."
+    description: "Mart Gold no grao afiliado e pais para acompanhar performance de aquisicao e detectar inconsistencias de funil CPA/FTD."
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: ["affiliate_id", "country"]
     columns:
       - name: affiliate_id
+        description: "Identificador do afiliado."
         data_tests:
           - not_null
       - name: country
+        description: "Pais da atribuicao em codigo de duas letras. Permite comparar performance e anomalias por mercado."
         data_tests:
           - not_null
+      - name: attributed_players
+        description: "Quantidade de players distintos atribuidos ao afiliado no pais."
+      - name: clicks
+        description: "Total de clicks atribuidos ao afiliado no pais."
+      - name: registrations
+        description: "Total de cadastros atribuidos ao afiliado no pais."
+      - name: ftd
+        description: "Total de First Time Deposits atribuidos ao afiliado no pais."
+      - name: estimated_cpa_cost
+        description: "Custo estimado de CPA, calculado a partir dos FTDs e valores de CPA informados na fonte."
+      - name: registration_rate
+        description: "Taxa de conversao de clicks para cadastros no grao afiliado e pais."
+      - name: ftd_rate
+        description: "Taxa de conversao de cadastros para FTD no grao afiliado e pais."
+      - name: registration_over_click_rows
+        description: "Quantidade de linhas Silver em que registrations foi maior que clicks. Sinaliza inconsistencia no topo do funil."
+      - name: ftd_over_registration_rows
+        description: "Quantidade de linhas Silver em que ftd foi maior que registrations. Sinaliza inflacao ou erro de atribuicao de FTD."
+      - name: has_funnel_anomaly
+        description: "Flag verdadeira quando o afiliado e pais possuem pelo menos uma inconsistencia de funil."
 
   - name: gold_fraud_overview
-    description: "Player-level fraud overview combining identity, behavior, finance and affiliate funnel signals."
+    description: "Mart Gold no grao player para triagem de fraude. Combina cadastro, comportamento de sessao, sinais financeiros e anomalias de afiliado em uma visao unica priorizada por quantidade de sinais."
     columns:
       - name: player_id
+        description: "Identificador unico do jogador. Chave primaria logica da visao de risco."
         data_tests:
           - not_null
           - unique
+      - name: email_domain
+        description: "Dominio do email cadastrado, herdado da Silver de players."
+      - name: city
+        description: "Cidade do cadastro do jogador."
+      - name: created_at
+        description: "Data de criacao do cadastro do jogador."
+      - name: session_count
+        description: "Quantidade de sessoes observadas para o player."
+      - name: distinct_ip_count
+        description: "Quantidade de IPs distintos usados pelo player."
+      - name: distinct_device_count
+        description: "Quantidade de tipos de device distintos usados pelo player."
+      - name: max_players_on_same_ip
+        description: "Maior quantidade de players distintos encontrada em um mesmo IP usado por este player."
+      - name: transaction_count
+        description: "Quantidade total de transacoes validas do player."
+      - name: total_deposit_amount
+        description: "Valor total depositado pelo player."
+      - name: total_withdraw_amount
+        description: "Valor total sacado pelo player."
+      - name: total_bet_amount
+        description: "Valor total apostado pelo player."
+      - name: withdraw_to_deposit_ratio
+        description: "Razao saque/deposito herdada de gold_financial_signals."
+      - name: bet_to_deposit_ratio
+        description: "Razao aposta/deposito herdada de gold_financial_signals."
+      - name: has_shared_ip_signal
+        description: "Flag verdadeira quando algum IP usado pelo player tambem aparece para pelo menos 5 players distintos. Indica possivel multi-conta ou trafego coordenado."
+      - name: has_many_devices_signal
+        description: "Flag verdadeira quando o player usa pelo menos 4 tipos de device distintos. Indica comportamento de acesso incomum."
+      - name: has_high_withdraw_signal
+        description: "Flag financeira verdadeira quando os saques sao muito superiores aos depositos, conforme regra de gold_financial_signals."
+      - name: has_high_bet_velocity_signal
+        description: "Flag financeira verdadeira quando o volume apostado e muito superior ao depositado, conforme regra de gold_financial_signals."
+      - name: has_affiliate_funnel_anomaly
+        description: "Flag verdadeira quando o player esta associado a alguma inconsistencia de funil de afiliado, como cadastros maiores que clicks ou FTD maior que cadastros."
       - name: fraud_signal_count
-        description: "Count of active fraud signals; intended for dashboard prioritization and alert ranking."
+        description: "Quantidade de sinais de fraude ativos para o player. Varia de 0 a 5 e deve ser usada para ranquear prioridade de investigacao."
         data_tests:
           - not_null
+      - name: last_session_at
+        description: "Timestamp da sessao mais recente do player."
+      - name: last_transaction_at
+        description: "Timestamp da transacao mais recente do player."

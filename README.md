@@ -20,6 +20,10 @@ Projeto desenvolvido para o case tecnico de Engenharia de Dados, Observabilidade
 - [Sinais de Fraude](#sinais-de-fraude)
 - [Dashboard Power BI](#dashboard-power-bi)
 - [Respostas ao Desafio](#respostas-ao-desafio)
+- [Avaliacao Tecnica da Entrega](#avaliacao-tecnica-da-entrega)
+- [Descricao dos Dados](#descricao-dos-dados)
+- [Validacao das Fraudes Identificadas](#validacao-das-fraudes-identificadas)
+- [Roteiro para Entrevista](#roteiro-para-entrevista)
 - [Troubleshooting](#troubleshooting)
 - [Validacao Local](#validacao-local)
 
@@ -559,6 +563,131 @@ Conexao recomendada: Power BI conectado diretamente nas tabelas `case_gold`.
 | Fraude | Gold possui sinais de IP compartilhado, multiplos devices, saque/aposta anomala e funil de afiliado. |
 | Dashboard | Estrutura recomendada para Power BI usando as tabelas Gold. |
 | CI/CD | GitHub Actions com Workload Identity Federation para DDL, dbt e jobs Python. |
+
+## Avaliacao Tecnica da Entrega
+
+Conclusao da revisao: a entrega cobre os requisitos centrais do desafio.
+
+| Area avaliada | Status | Evidencia no projeto |
+|---|---|---|
+| Arquitetura | Atendido | README com desenho medallion, `image.png`, GCS Landing/Staging, BigQuery Bronze/Silver/Gold. |
+| Ingestao | Atendido | Job Python em `jobs/case/parquet_converter` converte CSV/JSON em Parquet particionado. |
+| Orquestracao | Atendido | Factories de DAGs em `airflow/dags/case` e TaskGroups reutilizaveis em `airflow/include/task_groups`. |
+| BigQuery | Atendido | Datasets em `ddl/datasets` e DDLs de external tables Bronze em `ddl/tables`. |
+| dbt Bronze/Silver/Gold | Atendido | Sources Bronze, modelos Silver incrementais e modelos Gold analiticos. |
+| Incremental loads | Atendido com ressalva | `players`, `sessions` e `transactions` usam incremental por data/timestamp; `affiliate_cpa_ftd` usa full tecnico por nao ter data de evento na fonte. |
+| Qualidade de dados | Atendido | Testes de `not_null`, `unique`, `relationships`, `accepted_values` e testes singulares para metricas/flags. |
+| Observabilidade | Atendido | Secao dedicada a Airflow, Cloud Run, BigQuery, dbt e qualidade de dados. |
+| Fraude | Atendido | Gold traz mais de 2 sinais: financeiro, funil de afiliado, IP compartilhado e multi-device. |
+| Dashboard | Atendido como especificacao | README descreve paginas e indicadores esperados; as tabelas Gold estao prontas para consumo no Power BI. |
+
+Pontos fortes:
+
+- A separacao medallion esta clara e coerente com o case.
+- O job Python e configuravel por tabela e valida colunas obrigatorias antes de gravar Parquet.
+- A Silver faz normalizacao, casting, deduplicacao e relacionamento entre entidades.
+- A Gold entrega tabelas diretamente alinhadas aos tres temas pedidos: Fraud Overview, Affiliate Metrics e Financial Signals.
+- As descricoes dbt de Silver e Gold estao habilitadas para persistir no BigQuery com `persist_docs`.
+
+Pontos de atencao para falar com transparencia:
+
+- A Bronze foi desenhada como external table sobre Parquet; isso e economico e pratico para o case, mas em producao pode ser avaliado carregar para tabelas nativas se houver maior necessidade de performance.
+- `affiliate_cpa_ftd` nao possui timestamp de evento, entao a estrategia mais honesta e carga diaria com full tecnico/idempotente ou particionamento por `ingest_date`.
+- Os limiares de fraude sao regras heuristicas para triagem. Em producao, eles devem ser calibrados com historico, taxa de falso positivo e feedback do time de risco.
+
+## Descricao dos Dados
+
+Os dados representam quatro visoes complementares de uma operacao de iGaming: cadastro, comportamento de acesso, movimentacao financeira e aquisicao por afiliados.
+
+| Dataset | Grao da fonte | Papel analitico | Campos principais | Transformacao principal |
+|---|---|---|---|---|
+| `players.json` | Um registro por jogador | Dimensao cadastral para enriquecer risco por cidade, data de cadastro e dominio de email. | `player_id`, `email`, `city`, `created_at` | Normaliza email, extrai dominio, padroniza cidade e deduplica por `player_id`. |
+| `sessions.json` | Um registro por sessao | Base comportamental para investigar IP compartilhado, recencia e diversidade de devices. | `session_id`, `player_id`, `ip`, `device`, `timestamp` | Converte timestamp, normaliza device, cria `session_date` e deduplica por `session_id`. |
+| `transactions.csv` | Um registro por transacao | Base financeira para medir deposito, saque, aposta e padroes anormais. | `transaction_id`, `player_id`, `type`, `amount`, `timestamp` | Normaliza tipo, converte valor para NUMERIC, separa medidas de deposito/saque/aposta e deduplica por `transaction_id`. |
+| `affiliate_cpa_ftd.csv` | Afiliado, player e pais | Base de performance e fraude de aquisicao por CPA/FTD. | `affiliate_id`, `player_id`, `country`, `clicks`, `registrations`, `ftd`, `cpa_value` | Agrega por afiliado-player-pais, calcula custo CPA estimado, taxas de conversao e flags de funil impossivel. |
+
+Tabelas Silver recomendadas para BigQuery:
+
+| Tabela | Descricao curta para catalogo |
+|---|---|
+| `case_silver.slv_players` | Jogadores tratados e deduplicados, com email normalizado, dominio de email, cidade padronizada e data de cadastro. |
+| `case_silver.slv_sessions` | Sessoes tratadas e deduplicadas, com IP, device normalizado e timestamp de acesso para analise comportamental. |
+| `case_silver.slv_transactions` | Transacoes financeiras tratadas, com valores numericos e colunas separadas para depositos, saques e apostas. |
+| `case_silver.slv_affiliate_cpa_ftd` | Atribuicao de afiliados consolidada por afiliado, player e pais, com funil CPA/FTD e flags de inconsistencia. |
+
+Tabelas Gold recomendadas para BigQuery:
+
+| Tabela | Descricao curta para catalogo |
+|---|---|
+| `case_gold.gold_fraud_overview` | Visao consolidada por player para triagem de fraude, combinando sinais comportamentais, financeiros e de afiliado. |
+| `case_gold.gold_affiliate_metrics` | Mart de performance por afiliado e pais, com clicks, cadastros, FTD, CPA estimado e anomalias de funil. |
+| `case_gold.gold_financial_signals` | Mart financeiro por player, com volumes de deposito, saque, aposta, ratios e flags de comportamento anomalo. |
+
+## Validacao das Fraudes Identificadas
+
+O desafio pede que a Gold permita sugerir pelo menos 2 sinais de fraude. Esta solucao implementa 5 sinais:
+
+| Sinal | Onde fica | Regra | Interpretacao |
+|---|---|---|---|
+| Saque elevado | `gold_financial_signals.has_high_withdraw_signal` | `total_withdraw_amount > total_deposit_amount * 1.5` e `total_withdraw_amount >= 500` | Player saca muito mais do que deposita. Pode indicar abuso, comportamento financeiro atipico ou necessidade de investigacao. |
+| Aposta desproporcional | `gold_financial_signals.has_high_bet_velocity_signal` | `total_bet_amount >= total_deposit_amount * 5` e `total_bet_amount >= 1000` | Player gira/aposta muito mais do que depositou. Pode indicar uso intenso de credito, bonus, alavancagem ou comportamento fora da curva. |
+| Funil de afiliado anomalo | `slv_affiliate_cpa_ftd` e `gold_fraud_overview.has_affiliate_funnel_anomaly` | `registrations > clicks` ou `ftd > registrations` | O funil fica logicamente impossivel: nao deveria haver mais cadastros que clicks, nem mais FTDs que cadastros. |
+| IP compartilhado | `gold_fraud_overview.has_shared_ip_signal` | Algum IP do player aparece para pelo menos 5 players distintos | Pode indicar multi-conta, trafego coordenado, uso de rede compartilhada ou automacao. |
+| Muitos devices | `gold_fraud_overview.has_many_devices_signal` | Player usa pelo menos 4 tipos de device distintos | Pode indicar compartilhamento de conta, tentativa de mascarar origem ou comportamento incomum. |
+
+Validacao feita sobre os arquivos locais do case com a mesma logica dos modelos:
+
+| Medida | Resultado observado |
+|---|---:|
+| Players na base | 600 |
+| Linhas de transacao | 1.800 |
+| Linhas de afiliado | 2.000 |
+| Linhas com `registrations > clicks` | 139 |
+| Linhas com `ftd > registrations` | 344 |
+| Linhas com alguma anomalia de funil | 480 |
+| Players com sinal de saque elevado | 228 |
+| Players com sinal de aposta desproporcional | 135 |
+| Players com sinal de funil de afiliado | 325 |
+| Players com pelo menos 1 sinal | 465 |
+| Players com pelo menos 2 sinais | 176 |
+
+Observacao importante: na amostra local, os sinais de IP compartilhado e muitos devices nao dispararam com os limiares atuais. Mesmo assim, eles estao modelados e documentados para funcionar quando o dado apresentar esse comportamento. Os dois sinais minimos pedidos pelo desafio foram atendidos e validados por dados: financeiro e afiliado.
+
+## Roteiro para Entrevista
+
+Use este roteiro para explicar o projeto de forma simples e segura.
+
+1. Comece pelo problema: "O desafio era pegar dados heterogeneos de iGaming, tratar em uma arquitetura medallion e disponibilizar analises de risco, afiliados e comportamento financeiro."
+
+2. Explique a arquitetura: "Eu criei uma camada Landing para arquivos brutos, uma Staging em Parquet particionado, uma Bronze no BigQuery como external table, uma Silver limpa/deduplicada/incremental e uma Gold pronta para dashboard."
+
+3. Explique a ingestao: "O job Python recebe a tabela por variavel de ambiente, le CSV ou JSON, valida colunas obrigatorias, transforma em batches Parquet e grava no GCS. Isso deixa a carga idempotente e barata para o case."
+
+4. Explique o dbt: "Na Silver eu tratei tipos, padronizei campos, removi duplicidades e criei testes. Na Gold eu modelei as perguntas de negocio: overview de fraude por player, metricas de afiliado por pais e sinais financeiros por player."
+
+5. Explique incrementalidade: "Para players uso `created_at`, para sessions e transactions uso `timestamp`, porque sao datas naturais do evento. Para affiliate CPA/FTD, como a fonte nao tem data de evento, usei carga diaria com controle tecnico por ingestao."
+
+6. Explique fraude sem prometer decisao final: "Eu nao classifico automaticamente alguem como fraudador. Eu gero sinais de risco para priorizar investigacao. Isso reduz falso positivo e deixa a decisao final para o time de risco."
+
+7. Explique os sinais financeiros: "Criei dois sinais: saque muito maior que deposito e aposta muito maior que deposito. A ideia e capturar players com movimento financeiro desproporcional ao dinheiro que entrou."
+
+8. Explique o sinal de afiliado: "No funil de aquisicao, clicks vem antes de cadastro, e cadastro vem antes de FTD. Quando aparece `registrations > clicks` ou `ftd > registrations`, existe uma inconsistencia logica que pode indicar erro de tracking, inflacao de numeros ou fraude de afiliado."
+
+9. Explique os sinais comportamentais: "Tambem modelei IP compartilhado e muitos devices por player. Na amostra esses sinais nao dispararam, mas eles sao importantes em producao para detectar multi-conta e comportamento coordenado."
+
+10. Feche com o dashboard: "As tabelas Gold ja estao no formato de consumo: `gold_fraud_overview` para ranking de players suspeitos, `gold_affiliate_metrics` para performance e anomalias de afiliados, e `gold_financial_signals` para ratios e volumes financeiros."
+
+Frase curta para defender os limiares:
+
+```text
+Os thresholds sao heuristicas iniciais para o case. Eu os deixei simples e explicaveis, porque em um ambiente real eu calibraria esses cortes com historico, investigacoes confirmadas, custo de falso positivo e feedback do time de risco.
+```
+
+Frase curta sobre resultado:
+
+```text
+Com a base fornecida, a solucao identifica mais do que os dois sinais minimos pedidos: existem sinais financeiros e de afiliado materializados na Gold, e tambem sinais comportamentais modelados para producao.
+```
 
 ## Troubleshooting
 

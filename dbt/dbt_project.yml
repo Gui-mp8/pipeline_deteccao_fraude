@@ -21,8 +21,14 @@ models:
       +schema: case_silver
       +materialized: incremental
       +on_schema_change: sync_all_columns
+      +persist_docs:
+        relation: true
+        columns: true
       +tags: ["silver"]
     gold:
       +schema: case_gold
       +materialized: table
+      +persist_docs:
+        relation: true
+        columns: true
       +tags: ["gold"]
